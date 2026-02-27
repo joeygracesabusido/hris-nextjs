@@ -1,0 +1,154 @@
+// Prisma Schema for HRIS Philippines - MongoDB
+// This schema defines the database models for a Human Resource Information System
+// compliant with Philippine labor laws and payroll calculations.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mongodb"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================================================
+// MODELS
+// ============================================================================
+
+/// User model for authentication
+/// Links to Employee record for role-based access
+model User {
+  id            String    @id @default(auto()) @map("_id") @db.ObjectId
+  username      String    @unique
+  email         String    @unique
+  name          String?
+  password      String?
+  role          String    @default("EMPLOYEE")
+  status        String    @default("FOR_APPROVAL")
+  image         String?
+  emailVerified DateTime?
+
+  failedAttempts Int      @default(0)
+  lockUntil      DateTime?
+
+  employee      Employee?
+
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@map("users")
+}
+
+/// Employee model containing HR-related information
+model Employee {
+  id            String    @id @default(auto()) @map("_id") @db.ObjectId
+
+  userId        String?   @unique @db.ObjectId
+  user          User?     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  employeeNumber Int?     @unique
+  fullName      String
+  email         String    @unique
+
+  employeeId    String    @unique
+  position      String
+  department    String
+
+  basicSalary   Float
+
+  hireDate      DateTime
+  endDate       DateTime?
+  isActive      Boolean   @default(true)
+
+  tin           String
+  sssNo         String
+  philhealthNo  String
+  pagibigNo     String
+
+  bankName      String?
+  bankAccountNo String?
+
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  timeLogs      TimeLog[]
+  payrolls      Payroll[]
+
+  @@map("employees")
+}
+
+/// TimeLog model for daily attendance tracking
+model TimeLog {
+  id          String    @id @default(auto()) @map("_id") @db.ObjectId
+
+  employeeId  String    @db.ObjectId
+  employee    Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  date        DateTime
+  clockIn     DateTime?
+  clockOut    DateTime?
+
+  workHours   Float     @default(0)
+  otHours     Float     @default(0)
+  lateMinutes Float     @default(0)
+  undertimeMinutes Float @default(0)
+
+  notes       String?
+
+  isEdited    Boolean   @default(false)
+  editedBy    String?
+  editReason  String?
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@unique([employeeId, date])
+  @@map("timelogs")
+}
+
+/// Payroll model for monthly payroll records
+model Payroll {
+  id          String    @id @default(auto()) @map("_id") @db.ObjectId
+
+  employeeId  String    @db.ObjectId
+  employee    Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  month       Int
+  year        Int
+  periodStart DateTime
+  periodEnd   DateTime
+
+  basicSalary     Float
+  workDays        Float
+  daysWorked      Float
+
+  otHours         Float     @default(0)
+  otPay           Float     @default(0)
+
+  grossPay        Float     @default(0)
+
+  sssEmployee     Float     @default(0)
+  sssEmployer     Float     @default(0)
+  philhealthEmployee Float  @default(0)
+  philhealthEmployer Float  @default(0)
+  pagibigEmployee Float     @default(0)
+  pagibigEmployer Float     @default(0)
+
+  withholdingTax Float     @default(0)
+
+  otherDeductions Float     @default(0)
+
+  totalDeductions Float     @default(0)
+  netPay          Float     @default(0)
+
+  status          String    @default("DRAFT")
+
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  processedAt     DateTime?
+  approvedBy      String?
+  approvedAt      DateTime?
+
+  @@unique([employeeId, month, year])
+  @@map("payrolls")
+}
