@@ -1,7 +1,19 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { Clock, Play, Square, Calendar, User } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { Clock, Play, Square, Calendar, User, Upload, Download, FileSpreadsheet, LogOut } from 'lucide-react';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
+import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
 
 interface Employee {
   id: string;
@@ -32,6 +44,10 @@ export default function TimeLogsPage() {
   const [employeeId, setEmployeeId] = useState('');
   const [todayLog, setTodayLog] = useState<TimeLog | null>(null);
   const [clockingIn, setClockingIn] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const [importResult, setImportResult] = useState<{ success: number; failed: number; errors: string[] } | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     const getCookies = () => {
@@ -172,14 +188,162 @@ export default function TimeLogsPage() {
   const canClockIn = !todayLog || !todayLog.clockIn;
   const canClockOut = todayLog && todayLog.clockIn && !todayLog.clockOut;
 
+  const downloadTemplate = () => {
+    const headers = ['employeeNumber', 'date', 'clockIn', 'clockOut', 'notes'];
+    const sampleData = [
+      ['1001', '2026-01-01', '08:00', '17:00', 'Regular shift'],
+      ['1002', '2026-01-01', '09:00', '18:00', ''],
+    ];
+
+    const csvContent = [
+      headers.join(','),
+      ...sampleData.map(row => row.join(','))
+    ].join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = 'time_logs_template.csv';
+    link.click();
+    URL.revokeObjectURL(link.href);
+  };
+
+  const handleImport = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    setImporting(true);
+    setImportResult(null);
+
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const res = await fetch('/api/time-logs/import', {
+        method: 'POST',
+        body: formData,
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        setImportResult({ success: 0, failed: 1, errors: [data.error || 'Import failed'] });
+        return;
+      }
+
+      setImportResult({
+        success: data.results.success,
+        failed: data.results.failed,
+        errors: data.results.errors || []
+      });
+
+      if (data.results.success > 0) {
+        fetchTimeLogs();
+      }
+    } catch (err) {
+      setImportResult({ success: 0, failed: 1, errors: ['Something went wrong during import'] });
+    } finally {
+      setImporting(false);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }
+  };
+
+  const resetImport = () => {
+    setImportResult(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+  const handleLogout = () => {
+    document.cookie = 'isLoggedIn=; path=/; expires=Thu, 01 Jan 1970 00:00:00 UTC';
+    document.cookie = 'userRole=; path=/; expires=Thu, 01 Jan 1970 00:00:00 UTC';
+    document.cookie = 'userId=; path=/; expires=Thu, 01 Jan 1970 00:00:00 UTC';
+    window.location.href = '/login';
+  };
+
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">Time Logs</h1>
-        <p className="text-gray-500">Record your daily attendance</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Time Logs</h1>
+          <p className="text-gray-500">Record your daily attendance</p>
+        </div>
+        {(userRole === 'ADMIN' || userRole === 'MANAGER') && (
+          <div className="flex items-center gap-2">
+            <Dialog open={importOpen} onOpenChange={setImportOpen}>
+              <DialogTrigger asChild>
+                <Button variant="outline" className="gap-2">
+                  <Upload className="w-4 h-4" />
+                  Import
+                </Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Import Time Logs</DialogTitle>
+                  <DialogDescription>
+                    Upload a CSV or Excel file with time log data. The file should have columns: employeeNumber, date, clockIn, clockOut, notes.
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="space-y-4">
+                  <div className="flex items-center gap-4">
+                    <Button variant="outline" onClick={downloadTemplate} className="gap-2">
+                      <Download className="w-4 h-4" />
+                      Download Template
+                    </Button>
+                    <span className="text-sm text-gray-500">CSV or Excel file</span>
+                  </div>
+                  <div>
+                    <Label htmlFor="file-upload">Select File</Label>
+                    <Input
+                      id="file-upload"
+                      type="file"
+                      accept=".csv,.xlsx,.xls"
+                      ref={fileInputRef}
+                      onChange={handleImport}
+                      disabled={importing}
+                      className="mt-1"
+                    />
+                  </div>
+                  {importing && <p className="text-sm text-blue-600">Importing...</p>}
+                  {importResult && (
+                    <div className={`p-3 rounded-lg ${importResult.failed === 0 ? 'bg-green-50 text-green-700' : 'bg-yellow-50 text-yellow-700'}`}>
+                      <p className="font-medium">Import completed</p>
+                      <p className="text-sm">Successful: {importResult.success}</p>
+                      <p className="text-sm">Failed: {importResult.failed}</p>
+                      {importResult.errors.length > 0 && (
+                        <div className="mt-2 text-xs max-h-24 overflow-y-auto">
+                          {importResult.errors.slice(0, 5).map((err, i) => (
+                            <p key={i}>{err}</p>
+                          ))}
+                          {importResult.errors.length > 5 && <p>...and {importResult.errors.length - 5} more errors</p>}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => { resetImport(); setImportOpen(false); }}>
+                    Close
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+            <Button variant="outline" className="gap-2" onClick={handleLogout}>
+              <LogOut className="w-4 h-4" />
+              Logout
+            </Button>
+          </div>
+        )}
+        {userRole !== 'ADMIN' && userRole !== 'MANAGER' && (
+          <Button variant="outline" className="gap-2" onClick={handleLogout}>
+            <LogOut className="w-4 h-4" />
+            Logout
+          </Button>
+        )}
       </div>
-
-      {/* Clock In/Out Card */}
       <div className="bg-white rounded-xl border p-6">
         <div className="flex flex-col items-center justify-center space-y-4">
           <div className="w-24 h-24 bg-blue-100 rounded-full flex items-center justify-center">
