@@ -1,11 +1,7 @@
-/**
- * TypeScript Type Definitions
- * ============================
- * Shared types used across the HRIS application
- */
-
-import { Role, PayrollStatus } from '@prisma/client'
-
+// ============================================================================
+// TypeScript Type Definitions
+// ============================
+// Shared types used across the HRIS application
 // ============================================================================
 // User & Authentication Types
 // ============================================================================
@@ -14,7 +10,7 @@ export interface UserSession {
   id: string
   email: string
   name: string | null
-  role: Role
+  role: string
   image?: string | null
   employeeId?: string | null
 }
@@ -30,6 +26,7 @@ export interface EmployeeFormData {
   position: string
   department: string
   basicSalary: number
+  payrollFrequency: string
   hireDate: string // ISO date string for form handling
   tin: string
   sssNo: string
@@ -48,6 +45,7 @@ export interface EmployeeWithUser {
   position: string
   department: string
   basicSalary: number
+  payrollFrequency: string
   hireDate: Date
   endDate: Date | null
   isActive: boolean
@@ -63,7 +61,7 @@ export interface EmployeeWithUser {
     id: string
     email: string
     name: string | null
-    role: Role
+    role: string
   } | null
 }
 
@@ -137,7 +135,7 @@ export interface PayrollWithEmployee {
   otherDeductions: number
   totalDeductions: number
   netPay: number
-  status: PayrollStatus
+  status: string
   createdAt: Date
   updatedAt: Date
   processedAt: Date | null
@@ -186,6 +184,36 @@ export interface EmployeeDashboardData {
     daysPresent: number
     daysLate: number
   }
+}
+
+// ============================================================================
+// Leave Request Types
+// ============================================================================
+
+export type LeaveStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'CANCELLED'
+
+export interface LeaveRequest {
+  id: string
+  employeeId: string
+  approverId: string | null
+  leaveType: string
+  startDate: Date
+  endDate: Date
+  daysCount: number
+  reason: string
+  status: LeaveStatus
+  adminNotes: string | null
+  createdAt: Date
+  updatedAt: Date
+  employee?: {
+    id: string
+    fullName: string
+    employeeId: string
+  }
+  approver?: {
+    id: string
+    fullName: string
+  } | null
 }
 
 // ============================================================================

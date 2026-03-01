@@ -188,24 +188,38 @@ export default function TimeLogsPage() {
   const canClockIn = !todayLog || !todayLog.clockIn;
   const canClockOut = todayLog && todayLog.clockIn && !todayLog.clockOut;
 
-  const downloadTemplate = () => {
-    const headers = ['employeeNumber', 'date', 'clockIn', 'clockOut', 'notes'];
-    const sampleData = [
-      ['1001', '2026-01-01', '08:00', '17:00', 'Regular shift'],
-      ['1002', '2026-01-01', '09:00', '18:00', ''],
-    ];
+  const downloadTemplate = async () => {
+    try {
+      const res = await fetch('/api/employees');
+      const employees: Employee[] = await res.json();
+      
+      const headers = ['employeeNumber', 'date', 'clockIn', 'clockOut', 'notes'];
+      const sampleRows = employees.slice(0, 3).map(emp => [
+        String(emp.employeeNumber),
+        '2026-01-15',
+        '08:00',
+        '17:00',
+        ''
+      ]);
+      
+      if (sampleRows.length === 0) {
+        sampleRows.push(['1001', '2026-01-15', '08:00', '17:00', '']);
+      }
 
-    const csvContent = [
-      headers.join(','),
-      ...sampleData.map(row => row.join(','))
-    ].join('\n');
+      const csvContent = [
+        headers.join(','),
+        ...sampleRows.map(row => row.join(','))
+      ].join('\n');
 
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    link.href = URL.createObjectURL(blob);
-    link.download = 'time_logs_template.csv';
-    link.click();
-    URL.revokeObjectURL(link.href);
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = 'time_logs_template.csv';
+      link.click();
+      URL.revokeObjectURL(link.href);
+    } catch (err) {
+      console.error('Failed to fetch employees for template:', err);
+    }
   };
 
   const handleImport = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -280,23 +294,39 @@ export default function TimeLogsPage() {
                   Import
                 </Button>
               </DialogTrigger>
-              <DialogContent>
+              <DialogContent className="sm:max-w-md">
                 <DialogHeader>
-                  <DialogTitle>Import Time Logs</DialogTitle>
-                  <DialogDescription>
-                    Upload a CSV or Excel file with time log data. The file should have columns: employeeNumber, date, clockIn, clockOut, notes.
+                  <DialogTitle className="text-xl">Import Time Logs</DialogTitle>
+                  <DialogDescription className="text-sm text-gray-500 mt-1">
+                    Upload a CSV or Excel file with time log data. Download the template to see the expected format.
                   </DialogDescription>
                 </DialogHeader>
-                <div className="space-y-4">
-                  <div className="flex items-center gap-4">
-                    <Button variant="outline" onClick={downloadTemplate} className="gap-2">
-                      <Download className="w-4 h-4" />
-                      Download Template
-                    </Button>
-                    <span className="text-sm text-gray-500">CSV or Excel file</span>
+                <div className="space-y-6 py-4">
+                  <div className="border-2 border-dashed border-gray-200 rounded-lg p-6">
+                    <div className="flex flex-col items-center text-center">
+                      <div className="w-12 h-12 bg-blue-50 rounded-full flex items-center justify-center mb-3">
+                        <FileSpreadsheet className="w-6 h-6 text-blue-500" />
+                      </div>
+                      <p className="text-sm font-medium text-gray-700 mb-1">Download Template</p>
+                      <p className="text-xs text-gray-500 mb-3">Get the correct format with your employee numbers</p>
+                      <Button variant="outline" onClick={downloadTemplate} className="gap-2 bg-white">
+                        <Download className="w-4 h-4" />
+                        Download CSV Template
+                      </Button>
+                    </div>
                   </div>
-                  <div>
-                    <Label htmlFor="file-upload">Select File</Label>
+                  
+                  <div className="relative">
+                    <div className="absolute inset-0 flex items-center">
+                      <div className="w-full border-t border-gray-200"></div>
+                    </div>
+                    <div className="relative flex justify-center text-xs uppercase">
+                      <span className="bg-white px-2 text-gray-400">Or upload file</span>
+                    </div>
+                  </div>
+
+                  <div className="bg-gray-50 rounded-lg p-4">
+                    <Label htmlFor="file-upload" className="text-sm font-medium text-gray-700">Select File</Label>
                     <Input
                       id="file-upload"
                       type="file"
@@ -304,28 +334,52 @@ export default function TimeLogsPage() {
                       ref={fileInputRef}
                       onChange={handleImport}
                       disabled={importing}
-                      className="mt-1"
+                      className="mt-2 bg-white border-gray-200"
                     />
+                    <p className="text-xs text-gray-400 mt-1">Supported: .csv, .xlsx, .xls</p>
                   </div>
-                  {importing && <p className="text-sm text-blue-600">Importing...</p>}
+                  
+                  {importing && (
+                    <div className="flex items-center justify-center gap-2 py-2">
+                      <div className="w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+                      <p className="text-sm text-blue-600">Importing...</p>
+                    </div>
+                  )}
                   {importResult && (
-                    <div className={`p-3 rounded-lg ${importResult.failed === 0 ? 'bg-green-50 text-green-700' : 'bg-yellow-50 text-yellow-700'}`}>
-                      <p className="font-medium">Import completed</p>
-                      <p className="text-sm">Successful: {importResult.success}</p>
-                      <p className="text-sm">Failed: {importResult.failed}</p>
+                    <div className={`rounded-lg p-4 ${importResult.failed === 0 ? 'bg-green-50 border border-green-200' : 'bg-amber-50 border border-amber-200'}`}>
+                      <div className="flex items-center gap-2 mb-2">
+                        {importResult.failed === 0 ? (
+                          <div className="w-5 h-5 bg-green-500 rounded-full flex items-center justify-center">
+                            <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>
+                          </div>
+                        ) : (
+                          <div className="w-5 h-5 bg-amber-500 rounded-full flex items-center justify-center">
+                            <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M12 9v2m0 4h.01" /></svg>
+                          </div>
+                        )}
+                        <p className={`font-medium ${importResult.failed === 0 ? 'text-green-700' : 'text-amber-700'}`}>Import completed</p>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2 text-sm">
+                        <div className={`${importResult.failed === 0 ? 'text-green-600' : 'text-amber-600'}`}>
+                          <span className="font-medium">{importResult.success}</span> successful
+                        </div>
+                        <div className="text-red-600">
+                          <span className="font-medium">{importResult.failed}</span> failed
+                        </div>
+                      </div>
                       {importResult.errors.length > 0 && (
-                        <div className="mt-2 text-xs max-h-24 overflow-y-auto">
+                        <div className="mt-3 text-xs bg-white rounded p-2 max-h-24 overflow-y-auto border border-gray-100">
                           {importResult.errors.slice(0, 5).map((err, i) => (
-                            <p key={i}>{err}</p>
+                            <p key={i} className="text-red-500 py-0.5">{err}</p>
                           ))}
-                          {importResult.errors.length > 5 && <p>...and {importResult.errors.length - 5} more errors</p>}
+                          {importResult.errors.length > 5 && <p className="text-gray-500 py-0.5">...and {importResult.errors.length - 5} more errors</p>}
                         </div>
                       )}
                     </div>
                   )}
                 </div>
-                <DialogFooter>
-                  <Button variant="outline" onClick={() => { resetImport(); setImportOpen(false); }}>
+                <DialogFooter className="sm:justify-end">
+                  <Button variant="outline" onClick={() => { resetImport(); setImportOpen(false); }} className="w-full sm:w-auto">
                     Close
                   </Button>
                 </DialogFooter>

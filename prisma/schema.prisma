@@ -31,7 +31,7 @@ model User {
   failedAttempts Int      @default(0)
   lockUntil      DateTime?
 
-  employee      Employee?
+  employees      Employee[]
 
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
@@ -43,7 +43,7 @@ model User {
 model Employee {
   id            String    @id @default(auto()) @map("_id") @db.ObjectId
 
-  userId        String?   @unique @db.ObjectId
+  userId        String?   @db.ObjectId
   user          User?     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   employeeNumber Int?     @unique
@@ -55,6 +55,7 @@ model Employee {
   department    String
 
   basicSalary   Float
+  payrollFrequency String @default("MONTHLY")
 
   hireDate      DateTime
   endDate       DateTime?
@@ -68,13 +69,52 @@ model Employee {
   bankName      String?
   bankAccountNo String?
 
+  managerId     String?   @db.ObjectId
+  manager       Employee? @relation("ReportingLine", fields: [managerId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  subordinates  Employee[] @relation("ReportingLine")
+
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
   timeLogs      TimeLog[]
   payrolls      Payroll[]
+  leaveRequests LeaveRequest[] @relation("EmployeeLeaves")
+  approvedLeaves LeaveRequest[] @relation("ApproverLeaves")
 
   @@map("employees")
+}
+
+/// Leave request status enum
+enum LeaveStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELLED
+}
+
+/// LeaveRequest model for filing and approving leaves
+model LeaveRequest {
+  id           String      @id @default(auto()) @map("_id") @db.ObjectId
+
+  employeeId   String      @db.ObjectId
+  employee     Employee    @relation("EmployeeLeaves", fields: [employeeId], references: [id], onDelete: Cascade)
+  
+  approverId   String?     @db.ObjectId
+  approver     Employee?   @relation("ApproverLeaves", fields: [approverId], references: [id])
+  
+  leaveType    String      // e.g., VACATION, SICK, EMERGENCY, MATERNITY, PATERNITY
+  startDate    DateTime
+  endDate      DateTime
+  daysCount    Float
+  reason       String
+  status       LeaveStatus @default(PENDING)
+  
+  adminNotes   String?     // Notes from the approver
+  
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+
+  @@map("leaverequests")
 }
 
 /// TimeLog model for daily attendance tracking

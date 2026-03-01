@@ -12,6 +12,7 @@ interface Employee {
   position: string;
   department: string;
   basicSalary: number;
+  payrollFrequency: string;
   hireDate: string;
   isActive: boolean;
   tin: string;
@@ -23,6 +24,11 @@ interface Employee {
 }
 
 const departments = ['IT', 'HR', 'Finance', 'Marketing', 'Operations', 'Sales', 'Engineering', 'Admin'];
+const frequencies = [
+  { value: 'WEEKLY', label: 'Weekly' },
+  { value: 'SEMIMONTHLY', label: 'Semi-monthly' },
+  { value: 'MONTHLY', label: 'Monthly' }
+];
 
 export default function EmployeesPage() {
   const [employees, setEmployees] = useState<Employee[]>([]);
@@ -39,6 +45,8 @@ export default function EmployeesPage() {
     position: '',
     department: '',
     basicSalary: '',
+    payrollFrequency: 'MONTHLY',
+    managerId: '',
     hireDate: '',
     tin: '',
     sssNo: '',
@@ -91,17 +99,27 @@ export default function EmployeesPage() {
     setError('');
 
     try {
+      const payload = selectedEmployee 
+        ? { 
+            id: selectedEmployee.id, 
+            ...formData,
+            basicSalary: parseFloat(formData.basicSalary),
+            payrollFrequency: formData.payrollFrequency,
+            managerId: formData.managerId || null
+          } 
+        : formData;
+
       const res = await fetch('/api/employees', {
         method: selectedEmployee ? 'PUT' : 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(selectedEmployee ? { id: selectedEmployee.id, ...formData } : formData),
+        body: JSON.stringify(payload),
       });
 
       const data = await res.json();
 
       if (!res.ok) {
         setError(data.error || 'Failed to save employee');
-        alert(data.error || 'Failed to save employee');
+        alert(`${data.error}${data.details ? ': ' + data.details : ''}` || 'Failed to save employee');
         return;
       }
 
@@ -114,6 +132,7 @@ export default function EmployeesPage() {
         position: '',
         department: '',
         basicSalary: '',
+        payrollFrequency: 'MONTHLY',
         hireDate: '',
         tin: '',
         sssNo: '',
@@ -138,6 +157,8 @@ export default function EmployeesPage() {
       position: employee.position,
       department: employee.department,
       basicSalary: employee.basicSalary.toString(),
+      payrollFrequency: employee.payrollFrequency || 'MONTHLY',
+      managerId: employee.managerId || '',
       hireDate: employee.hireDate.split('T')[0],
       tin: employee.tin || '',
       sssNo: employee.sssNo || '',
@@ -229,6 +250,7 @@ export default function EmployeesPage() {
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">ID</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Position</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Department</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Frequency</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Salary</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
                 {isAdmin && <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>}
@@ -253,6 +275,9 @@ export default function EmployeesPage() {
                   <td className="px-6 py-4 text-sm">#{employee.employeeNumber}</td>
                   <td className="px-6 py-4 text-sm">{employee.position}</td>
                   <td className="px-6 py-4 text-sm">{employee.department}</td>
+                  <td className="px-6 py-4 text-sm">
+                    <span className="capitalize">{employee.payrollFrequency?.toLowerCase() || 'Monthly'}</span>
+                  </td>
                   <td className="px-6 py-4 text-sm">₱{employee.basicSalary.toLocaleString()}</td>
                   <td className="px-6 py-4">
                     <span className={`px-2 py-1 rounded-full text-xs ${
@@ -351,11 +376,38 @@ export default function EmployeesPage() {
                 </div>
 
                 <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Immediate Manager</label>
+                  <div className="relative">
+                    <User className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                    <select name="managerId" value={formData.managerId} onChange={handleChange}
+                      className="w-full pl-10 pr-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 appearance-none">
+                      <option value="">None (Top Level)</option>
+                      {employees.filter(e => e.id !== selectedEmployee?.id).map(emp => (
+                        <option key={emp.id} value={emp.id}>{emp.fullName}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Basic Salary (PHP) *</label>
                   <div className="relative">
                     <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
                     <input type="number" name="basicSalary" value={formData.basicSalary} onChange={handleChange} required
                       className="w-full pl-10 pr-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500" placeholder="25000" />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Payroll Frequency *</label>
+                  <div className="relative">
+                    <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                    <select name="payrollFrequency" value={formData.payrollFrequency} onChange={handleChange} required
+                      className="w-full pl-10 pr-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 appearance-none">
+                      {frequencies.map(freq => (
+                        <option key={freq.value} value={freq.value}>{freq.label}</option>
+                      ))}
+                    </select>
                   </div>
                 </div>
 

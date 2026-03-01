@@ -117,6 +117,7 @@ export async function POST(request: Request) {
           `isLoggedIn=true; Path=/; Max-Age=${60 * 60 * 24}`,
           `userId=${user.id}; Path=/; Max-Age=${60 * 60 * 24}`,
           `userRole=${user.role}; Path=/; Max-Age=${60 * 60 * 24}`,
+          `userEmail=${user.email}; Path=/; Max-Age=${60 * 60 * 24}`,
         ].join(', '),
       },
     });

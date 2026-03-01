@@ -1,1 +1,8 @@
-{}
+{
+  "/api/leaves/route": "app/api/leaves/route.js",
+  "/api/employees/route": "app/api/employees/route.js",
+  "/(auth)/login/page": "app/(auth)/login/page.js",
+  "/(dashboard)/dashboard/page": "app/(dashboard)/dashboard/page.js",
+  "/(dashboard)/employees/page": "app/(dashboard)/employees/page.js",
+  "/(dashboard)/leaves/page": "app/(dashboard)/leaves/page.js"
+}

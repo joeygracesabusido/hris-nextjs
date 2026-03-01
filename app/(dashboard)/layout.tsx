@@ -2,13 +2,14 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { LayoutDashboard, Users, DollarSign, Clock, FileText, LogOut, Menu, UserCheck } from 'lucide-react';
+import { LayoutDashboard, Users, DollarSign, Clock, FileText, LogOut, Menu, UserCheck, CalendarDays } from 'lucide-react';
 import { useState } from 'react';
 
 const navItems = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/users', label: 'Users', icon: UserCheck },
   { href: '/employees', label: 'Employees', icon: Users },
+  { href: '/leaves', label: 'Leaves', icon: CalendarDays },
   { href: '/payroll', label: 'Payroll', icon: DollarSign },
   { href: '/time-logs', label: 'Time Logs', icon: Clock },
   { href: '/reports', label: 'Reports', icon: FileText },

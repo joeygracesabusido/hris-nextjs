@@ -9,8 +9,7 @@ import CredentialsProvider from 'next-auth/providers/credentials'
 import GoogleProvider from 'next-auth/providers/google'
 import { PrismaAdapter } from '@next-auth/prisma-adapter'
 import bcrypt from 'bcryptjs'
-import { prisma } from '@/lib/prisma'
-import { Role } from '@prisma/client'
+import prisma from '@/lib/prisma'
 
 export const authOptions: NextAuthOptions = {
   adapter: PrismaAdapter(prisma),
@@ -101,7 +100,7 @@ export const authOptions: NextAuthOptions = {
       if (user) {
         token.id = user.id
         token.role = user.role
-        token.employeeId = user.employeeId
+        token.employeeId = user.employeeId ?? null
       }
 
       // Handle session updates
@@ -117,7 +116,7 @@ export const authOptions: NextAuthOptions = {
       // Add token data to session
       if (token) {
         session.user.id = token.id as string
-        session.user.role = token.role as Role
+        session.user.role = token.role as string
         session.user.employeeId = token.employeeId as string | null
       }
       return session
@@ -134,9 +133,10 @@ export const authOptions: NextAuthOptions = {
           await prisma.user.create({
             data: {
               email: user.email!,
+              username: user.email!,
               name: user.name,
               image: user.image,
-              role: Role.EMPLOYEE,
+              role: 'EMPLOYEE',
             },
           })
         }
@@ -164,14 +164,14 @@ declare module 'next-auth' {
       id: string
       email: string
       name: string | null
-      role: Role
+      role: string
       image?: string | null
       employeeId: string | null
     }
   }
 
   interface User {
-    role: Role
+    role: string
     employeeId?: string | null
   }
 }
@@ -179,7 +179,7 @@ declare module 'next-auth' {
 declare module 'next-auth/jwt' {
   interface JWT {
     id: string
-    role: Role
+    role: string
     employeeId: string | null
   }
 }
