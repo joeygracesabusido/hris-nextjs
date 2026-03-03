@@ -11,11 +11,27 @@ export async function GET(request: Request) {
     const timeLogs = await prisma.timeLog.findMany({
       where,
       orderBy: { date: 'desc' },
-      include: {
-        employee: true,
-      },
     });
-    return NextResponse.json(timeLogs);
+
+    const employeeIds = Array.from(new Set(timeLogs.map(log => log.employeeId)));
+    const employees = await prisma.employee.findMany({
+      where: { id: { in: employeeIds } },
+      select: { id: true, fullName: true, employeeId: true },
+    });
+    const employeeMap = new Map(employees.map(emp => [emp.id, emp]));
+
+    const formattedLogs = timeLogs.map(log => {
+      const emp = employeeMap.get(log.employeeId);
+      return {
+        ...log,
+        employee: emp ? {
+          fullName: emp.fullName,
+          employeeId: emp.employeeId,
+        } : { fullName: 'Unknown', employeeId: 'N/A' },
+      };
+    });
+
+    return NextResponse.json(formattedLogs);
   } catch (error) {
     console.error('Error fetching time logs:', error);
     return NextResponse.json(

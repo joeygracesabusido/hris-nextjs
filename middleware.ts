@@ -11,7 +11,7 @@ export function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  if (pathname.startsWith('/api/users') || pathname.startsWith('/api/employees') || pathname.startsWith('/api/time-logs')) {
+  if (pathname.startsWith('/api/users') || pathname.startsWith('/api/employees') || pathname.startsWith('/api/time-logs') || pathname.startsWith('/api/leaves')) {
     return NextResponse.next();
   }
 

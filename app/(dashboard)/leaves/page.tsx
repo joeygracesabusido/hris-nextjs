@@ -61,7 +61,7 @@ export default function LeavesPage() {
 
   const fetchLeaves = async () => {
     try {
-      const res = await fetch('/api/leaves');
+      const res = await fetch('/api/leaves', { credentials: 'include' });
       const data = await res.json();
       if (Array.isArray(data)) {
         setLeaves(data);
@@ -75,7 +75,7 @@ export default function LeavesPage() {
 
   const fetchEmployees = async () => {
     try {
-      const res = await fetch('/api/employees');
+      const res = await fetch('/api/employees', { credentials: 'include' });
       const data = await res.json();
       if (Array.isArray(data)) {
         setEmployees(data);
@@ -97,6 +97,7 @@ export default function LeavesPage() {
       const res = await fetch('/api/leaves', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify(formData),
       });
 
@@ -108,6 +109,7 @@ export default function LeavesPage() {
       alert('Leave request submitted successfully!');
       setShowModal(false);
       setFormData({
+        employeeId: formData.employeeId,
         leaveType: 'VACATION',
         startDate: '',
         endDate: '',
@@ -128,6 +130,7 @@ export default function LeavesPage() {
       const res = await fetch('/api/leaves', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({
           id: selectedLeave.id,
           ...approvalData

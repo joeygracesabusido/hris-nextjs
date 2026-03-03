@@ -80,8 +80,13 @@ export default function TimeLogsPage() {
   const fetchTimeLogs = async () => {
     try {
       const res = await fetch('/api/time-logs');
+      if (!res.ok) {
+        console.error('Failed to fetch time logs:', res.statusText);
+        setTimeLogs([]);
+        return;
+      }
       const data = await res.json();
-      setTimeLogs(data);
+      setTimeLogs(Array.isArray(data) ? data : []);
       
       const today = new Date().toISOString().split('T')[0];
       const todayEntry = data.find((log: TimeLog) => log.date.startsWith(today));
