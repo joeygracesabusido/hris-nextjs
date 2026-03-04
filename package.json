@@ -9,7 +9,8 @@
     "lint": "next lint",
     "postinstall": "prisma generate",
     "db:seed": "tsx prisma/seed.ts",
-    "db:push": "prisma db push"
+    "db:push": "prisma db push",
+    "pages:build": "npx @cloudflare/next-on-pages"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.3.4",
