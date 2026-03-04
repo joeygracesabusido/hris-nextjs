@@ -1,5 +1,3 @@
-export const runtime = "edge";
-
 import { Users, DollarSign, Clock, TrendingUp } from 'lucide-react';
 
 const stats = [
