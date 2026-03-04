@@ -8,8 +8,8 @@ import { NextAuthOptions } from 'next-auth'
 import CredentialsProvider from 'next-auth/providers/credentials'
 import GoogleProvider from 'next-auth/providers/google'
 import { PrismaAdapter } from '@next-auth/prisma-adapter'
+import bcrypt from 'bcryptjs'
 import prisma from '@/lib/prisma'
-import { verifyPassword } from '@/lib/password'
 
 export const authOptions: NextAuthOptions = {
   adapter: PrismaAdapter(prisma),
@@ -52,7 +52,7 @@ export const authOptions: NextAuthOptions = {
         }
 
         // Verify password
-        const isPasswordValid = await verifyPassword(
+        const isPasswordValid = await bcrypt.compare(
           credentials.password,
           user.password
         )

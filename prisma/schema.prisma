@@ -1,4 +1,4 @@
-// Prisma Schema for HRIS Philippines - SQLite (D1)
+// Prisma Schema for HRIS Philippines - MongoDB
 // This schema defines the database models for a Human Resource Information System
 // compliant with Philippine labor laws and payroll calculations.
 
@@ -7,7 +7,7 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "mongodb"
   url      = env("DATABASE_URL")
 }
 
@@ -18,7 +18,7 @@ datasource db {
 /// User model for authentication
 /// Links to Employee record for role-based access
 model User {
-  id            String    @id @default(cuid())
+  id            String    @id @default(auto()) @map("_id") @db.ObjectId
   username      String    @unique
   email         String    @unique
   name          String?
@@ -35,13 +35,15 @@ model User {
 
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
+
+  @@map("users")
 }
 
 /// Employee model containing HR-related information
 model Employee {
-  id            String    @id @default(cuid())
+  id            String    @id @default(auto()) @map("_id") @db.ObjectId
 
-  userId        String?
+  userId        String?   @db.ObjectId
   user          User?     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   employeeNumber Int?     @unique
@@ -67,7 +69,7 @@ model Employee {
   bankName      String?
   bankAccountNo String?
 
-  managerId     String?
+  managerId     String?   @db.ObjectId
   manager       Employee? @relation("ReportingLine", fields: [managerId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   subordinates  Employee[] @relation("ReportingLine")
 
@@ -78,16 +80,26 @@ model Employee {
   payrolls      Payroll[]
   leaveRequests LeaveRequest[] @relation("EmployeeLeaves")
   approvedLeaves LeaveRequest[] @relation("ApproverLeaves")
+
+  @@map("employees")
 }
 
 /// Leave request status enum
-model LeaveRequest {
-  id           String      @id @default(cuid())
+enum LeaveStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELLED
+}
 
-  employeeId   String
+/// LeaveRequest model for filing and approving leaves
+model LeaveRequest {
+  id           String      @id @default(auto()) @map("_id") @db.ObjectId
+
+  employeeId   String      @db.ObjectId
   employee     Employee    @relation("EmployeeLeaves", fields: [employeeId], references: [id], onDelete: Cascade)
   
-  approverId   String?
+  approverId   String?     @db.ObjectId
   approver     Employee?   @relation("ApproverLeaves", fields: [approverId], references: [id])
   
   leaveType    String      // e.g., VACATION, SICK, EMERGENCY, MATERNITY, PATERNITY
@@ -95,19 +107,21 @@ model LeaveRequest {
   endDate      DateTime
   daysCount    Float
   reason       String
-  status       String      @default("PENDING")
+  status       LeaveStatus @default(PENDING)
   
   adminNotes   String?     // Notes from the approver
   
   createdAt    DateTime    @default(now())
   updatedAt    DateTime    @updatedAt
+
+  @@map("leaverequests")
 }
 
 /// TimeLog model for daily attendance tracking
 model TimeLog {
-  id          String    @id @default(cuid())
+  id          String    @id @default(auto()) @map("_id") @db.ObjectId
 
-  employeeId  String
+  employeeId  String    @db.ObjectId
   employee    Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
 
   date        DateTime
@@ -129,13 +143,14 @@ model TimeLog {
   updatedAt   DateTime  @updatedAt
 
   @@unique([employeeId, date])
+  @@map("timelogs")
 }
 
 /// Payroll model for monthly payroll records
 model Payroll {
-  id          String    @id @default(cuid())
+  id          String    @id @default(auto()) @map("_id") @db.ObjectId
 
-  employeeId  String
+  employeeId  String    @db.ObjectId
   employee    Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
 
   month       Int
@@ -161,7 +176,7 @@ model Payroll {
 
   withholdingTax Float     @default(0)
 
-  otherDeductions Float    @default(0)
+  otherDeductions Float     @default(0)
 
   totalDeductions Float    @default(0)
   netPay          Float    @default(0)
@@ -175,4 +190,5 @@ model Payroll {
   approvedAt      DateTime?
 
   @@unique([employeeId, month, year])
+  @@map("payrolls")
 }
