@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
-import bcrypt from 'bcryptjs';
 import prisma from '@/lib/prisma';
+import { verifyPassword } from '@/lib/password';
+
+export const runtime = 'edge';
 
 export async function POST(request: Request) {
   try {
@@ -45,7 +47,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const isPasswordValid = await bcrypt.compare(password, user.password);
+    const isPasswordValid = await verifyPassword(password, user.password);
 
     if (!isPasswordValid) {
       const failedAttempts = user.failedAttempts + 1;
