@@ -1,5 +1,7 @@
 'use client';
 
+export const runtime = "edge";
+
 import { useState, useEffect } from 'react';
 import { Plus, Calendar, CheckCircle, XCircle, Clock, Search, Filter, Info, FileText, Users } from 'lucide-react';
 import { format } from 'date-fns/format';

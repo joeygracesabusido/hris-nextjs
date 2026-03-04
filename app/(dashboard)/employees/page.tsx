@@ -1,5 +1,7 @@
 'use client';
 
+export const runtime = "edge";
+
 import { useState, useEffect } from 'react';
 import { Plus, Search, User, Mail, Briefcase, Building, DollarSign, Calendar, CreditCard, Pencil, Trash2, X } from 'lucide-react';
 
@@ -15,6 +17,7 @@ interface Employee {
   payrollFrequency: string;
   hireDate: string;
   isActive: boolean;
+  managerId?: string;
   tin: string;
   sssNo: string;
   philhealthNo: string;
@@ -133,6 +136,7 @@ export default function EmployeesPage() {
         department: '',
         basicSalary: '',
         payrollFrequency: 'MONTHLY',
+        managerId: '',
         hireDate: '',
         tin: '',
         sssNo: '',

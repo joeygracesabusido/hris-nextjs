@@ -38,7 +38,7 @@ export const authOptions: NextAuthOptions = {
         const user = await prisma.user.findUnique({
           where: { email: credentials.email.toLowerCase() },
           include: {
-            employee: {
+            employees: {
               select: {
                 id: true,
                 employeeId: true,
@@ -68,7 +68,7 @@ export const authOptions: NextAuthOptions = {
           name: user.name,
           role: user.role,
           image: user.image,
-          employeeId: user.employee?.employeeId ?? null,
+          employeeId: user.employees[0]?.employeeId ?? null,
         }
       },
     }),

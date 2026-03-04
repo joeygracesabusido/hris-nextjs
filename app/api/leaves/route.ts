@@ -1,3 +1,5 @@
+export const runtime = "edge";
+
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { cookies } from 'next/headers';
@@ -5,7 +7,7 @@ import { cookies } from 'next/headers';
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
-    const cookieStore = cookies();
+    const cookieStore = await cookies();
     const userRole = cookieStore.get('userRole')?.value;
     const userEmail = cookieStore.get('userEmail')?.value; // Assuming we set this on login
 
@@ -56,7 +58,7 @@ export async function POST(request: Request) {
     const body = await request.json();
     const { leaveType, startDate, endDate, reason, daysCount, employeeId: providedEmployeeId } = body;
 
-    const cookieStore = cookies();
+    const cookieStore = await cookies();
     const userEmail = cookieStore.get('userEmail')?.value;
     const userRole = cookieStore.get('userRole')?.value;
 

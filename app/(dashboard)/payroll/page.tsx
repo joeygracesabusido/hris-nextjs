@@ -1,3 +1,5 @@
+export const runtime = "edge";
+
 export default function PayrollPage() {
   return (
     <div className="p-8">
