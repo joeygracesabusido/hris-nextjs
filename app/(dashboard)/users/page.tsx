@@ -19,13 +19,6 @@ export default function UsersPage() {
   const [filter, setFilter] = useState('all');
   const [mounted, setMounted] = useState(false);
 
-  useEffect(() => {
-    setMounted(true);
-    fetchUsers();
-  }, []);
-
-  if (!mounted) return null;
-
   const fetchUsers = async () => {
     try {
       const res = await fetch('/api/users');
@@ -37,6 +30,13 @@ export default function UsersPage() {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    setMounted(true);
+    fetchUsers();
+  }, []);
+
+  if (!mounted) return null;
 
   const handleStatusChange = async (userId: string, status: string) => {
     try {

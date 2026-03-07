@@ -57,6 +57,18 @@ export default function PayrollPage() {
     periodEnd: '',
   });
 
+  const fetchEmployees = async () => {
+    try {
+      const res = await fetch('/api/employees');
+      const data = await res.json();
+      setEmployees(data);
+    } catch (err) {
+      console.error('Failed to fetch employees:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
     setMounted(true);
     if (typeof document === 'undefined') return;
@@ -74,18 +86,6 @@ export default function PayrollPage() {
   }, []);
 
   if (!mounted) return null;
-
-  const fetchEmployees = async () => {
-    try {
-      const res = await fetch('/api/employees');
-      const data = await res.json();
-      setEmployees(data);
-    } catch (err) {
-      console.error('Failed to fetch employees:', err);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });

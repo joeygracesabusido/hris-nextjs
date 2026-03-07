@@ -1,6 +1,9 @@
 {
-  "/api/login/route": "app/api/login/route.js",
-  "/(auth)/login/page": "app/(auth)/login/page.js",
+  "/api/users/route": "app/api/users/route.js",
+  "/api/employees/route": "app/api/employees/route.js",
+  "/api/time-logs/route": "app/api/time-logs/route.js",
   "/(dashboard)/dashboard/page": "app/(dashboard)/dashboard/page.js",
+  "/(dashboard)/users/page": "app/(dashboard)/users/page.js",
+  "/(dashboard)/time-logs/page": "app/(dashboard)/time-logs/page.js",
   "/(dashboard)/payroll/page": "app/(dashboard)/payroll/page.js"
 }
