@@ -92,6 +92,13 @@ enum LeaveStatus {
   CANCELLED
 }
 
+/// Overtime status enum
+enum OtStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
 /// LeaveRequest model for filing and approving leaves
 model LeaveRequest {
   id           String      @id @default(auto()) @map("_id") @db.ObjectId
@@ -130,6 +137,7 @@ model TimeLog {
 
   workHours   Float     @default(0)
   otHours     Float     @default(0)
+  otStatus    OtStatus  @default(PENDING)
   lateMinutes Float     @default(0)
   undertimeMinutes Float @default(0)
 
