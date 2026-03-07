@@ -35,6 +35,7 @@ export default function LeavesPage() {
   });
 
   useEffect(() => {
+    if (typeof document === 'undefined') return;
     const getCookies = () => {
       const cookies = document.cookie.split(';').reduce((acc, cookie) => {
         const [key, value] = cookie.trim().split('=');

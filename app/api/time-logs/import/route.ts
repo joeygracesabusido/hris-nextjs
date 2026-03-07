@@ -1,8 +1,6 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 
-export const runtime = 'edge';
-
 interface ImportTimeLog {
   employeeNumber: string;
   date: string;

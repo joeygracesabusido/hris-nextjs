@@ -58,8 +58,8 @@ export default function EmployeesPage() {
   });
 
   useEffect(() => {
+    if (typeof document === 'undefined') return;
     const getCookies = () => {
-      if (typeof document === 'undefined') return { role: '', loggedIn: false };
       const cookies = document.cookie.split(';').reduce((acc, cookie) => {
         const [key, value] = cookie.trim().split('=');
         acc[key] = value;

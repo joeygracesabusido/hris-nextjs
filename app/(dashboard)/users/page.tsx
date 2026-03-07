@@ -17,10 +17,14 @@ export default function UsersPage() {
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('all');
+  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
+    setMounted(true);
     fetchUsers();
   }, []);
+
+  if (!mounted) return null;
 
   const fetchUsers = async () => {
     try {
