@@ -25,10 +25,10 @@ export async function POST(request: Request) {
     const buffer = Buffer.from(bytes);
 
     const XLSX = require('xlsx');
-    const workbook = XLSX.read(buffer, { type: 'buffer' });
+    const workbook = XLSX.read(buffer, { type: 'buffer', cellDates: true });
     const sheetName = workbook.SheetNames[0];
     const worksheet = workbook.Sheets[sheetName];
-    const data = XLSX.utils.sheet_to_json(worksheet) as ImportTimeLog[];
+    const data = XLSX.utils.sheet_to_json(worksheet) as any[];
 
     if (!data || data.length === 0) {
       return NextResponse.json(
@@ -41,6 +41,40 @@ export async function POST(request: Request) {
       success: 0,
       failed: 0,
       errors: [] as string[],
+    };
+
+    const parseTime = (timeVal: any, baseDate: Date): Date | null => {
+      if (!timeVal) return null;
+      
+      const res = new Date(baseDate);
+      
+      if (timeVal instanceof Date) {
+        res.setHours(timeVal.getHours(), timeVal.getMinutes(), 0, 0);
+        return res;
+      }
+      
+      if (typeof timeVal === 'number') {
+        // Excel time is a fraction of a day
+        const totalMinutes = Math.round(timeVal * 24 * 60);
+        const hours = Math.floor(totalMinutes / 60);
+        const minutes = totalMinutes % 60;
+        res.setHours(hours, minutes, 0, 0);
+        return res;
+      }
+      
+      if (typeof timeVal === 'string') {
+        const parts = timeVal.split(':');
+        if (parts.length >= 2) {
+          const hours = parseInt(parts[0]);
+          const minutes = parseInt(parts[1]);
+          if (!isNaN(hours) && !isNaN(minutes)) {
+            res.setHours(hours, minutes, 0, 0);
+            return res;
+          }
+        }
+      }
+      
+      return null;
     };
 
     for (const row of data) {
@@ -61,19 +95,29 @@ export async function POST(request: Request) {
           continue;
         }
 
-        const dateStr = row.date;
-        const dateObj = new Date(dateStr);
+        let dateObj: Date;
+        if (row.date instanceof Date) {
+          dateObj = row.date;
+        } else if (typeof row.date === 'number') {
+          // Handle Excel numeric date
+          dateObj = new Date((row.date - 25569) * 86400 * 1000);
+        } else {
+          dateObj = new Date(row.date);
+        }
+
         if (isNaN(dateObj.getTime())) {
           results.failed++;
           results.errors.push(`Invalid date for employee ${row.employeeNumber}: ${row.date}`);
           continue;
         }
 
-        const dateStart = new Date(dateObj);
-        dateStart.setHours(0, 0, 0, 0);
-        const dateEnd = new Date(dateObj);
+        // Normalize date to 00:00:00
+        const dateNormalized = new Date(dateObj);
+        dateNormalized.setHours(0, 0, 0, 0);
+
+        const dateStart = new Date(dateNormalized);
+        const dateEnd = new Date(dateNormalized);
         dateEnd.setDate(dateEnd.getDate() + 1);
-        dateEnd.setHours(0, 0, 0, 0);
 
         const existingLog = await prisma.timeLog.findFirst({
           where: {
@@ -85,31 +129,15 @@ export async function POST(request: Request) {
           },
         });
 
-        let clockInTime: Date | null = null;
-        let clockOutTime: Date | null = null;
-
-        if (row.clockIn) {
-          const clockInDate = new Date(dateObj);
-          const [clockInHours, clockInMinutes] = String(row.clockIn).split(':').map(Number);
-          if (!isNaN(clockInHours) && !isNaN(clockInMinutes)) {
-            clockInDate.setHours(clockInHours, clockInMinutes, 0, 0);
-            clockInTime = clockInDate;
-          }
-        }
-
-        if (row.clockOut) {
-          const clockOutDate = new Date(dateObj);
-          const [clockOutHours, clockOutMinutes] = String(row.clockOut).split(':').map(Number);
-          if (!isNaN(clockOutHours) && !isNaN(clockOutMinutes)) {
-            clockOutDate.setHours(clockOutHours, clockOutMinutes, 0, 0);
-            clockOutTime = clockOutDate;
-          }
-        }
+        const clockInTime = parseTime(row.clockIn, dateNormalized);
+        const clockOutTime = parseTime(row.clockOut, dateNormalized);
 
         let workHours = 0;
+        let otHours = 0;
         if (clockInTime && clockOutTime) {
           workHours = (clockOutTime.getTime() - clockInTime.getTime()) / (1000 * 60 * 60);
           workHours = Math.round(workHours * 100) / 100;
+          otHours = Math.max(0, workHours - 8);
         }
 
         if (existingLog) {
@@ -119,6 +147,7 @@ export async function POST(request: Request) {
               clockIn: clockInTime || existingLog.clockIn,
               clockOut: clockOutTime || existingLog.clockOut,
               workHours: workHours || existingLog.workHours,
+              otHours: otHours || existingLog.otHours,
               notes: row.notes || existingLog.notes,
               isEdited: true,
             },
@@ -127,10 +156,11 @@ export async function POST(request: Request) {
           await prisma.timeLog.create({
             data: {
               employeeId: employee.id,
-              date: dateObj,
+              date: dateNormalized,
               clockIn: clockInTime,
               clockOut: clockOutTime,
               workHours,
+              otHours,
               notes: row.notes || '',
             },
           });

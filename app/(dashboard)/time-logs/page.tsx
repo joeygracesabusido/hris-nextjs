@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { Clock, Play, Square, Calendar, User, Upload, Download, FileSpreadsheet, LogOut } from 'lucide-react';
+import { Clock, Play, Square, Calendar, User, Upload, Download, FileSpreadsheet, LogOut, Search } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -47,6 +47,7 @@ export default function TimeLogsPage() {
   const [importOpen, setImportOpen] = useState(false);
   const [importing, setImporting] = useState(false);
   const [importResult, setImportResult] = useState<{ success: number; failed: number; errors: string[] } | null>(null);
+  const [searchTerm, setSearchTerm] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -496,13 +497,27 @@ export default function TimeLogsPage() {
       {/* Time Logs Table */}
       {(userRole === 'ADMIN' || userRole === 'MANAGER') && (
         <div className="bg-white rounded-xl border overflow-hidden">
-          <div className="p-6 border-b">
+          <div className="p-6 border-b flex flex-col md:flex-row md:items-center justify-between gap-4">
             <h2 className="text-lg font-semibold">All Time Logs</h2>
+            <div className="relative w-full md:w-72">
+              <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">
+                <Search className="w-4 h-4" />
+              </div>
+              <input
+                type="text"
+                placeholder="Search employee name..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full pl-10 pr-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
+              />
+            </div>
           </div>
           
           {loading ? (
             <div className="p-8 text-center text-gray-500">Loading...</div>
-          ) : timeLogs.length === 0 ? (
+          ) : timeLogs.filter(log => 
+            log.employee?.fullName?.toLowerCase().includes(searchTerm.toLowerCase())
+          ).length === 0 ? (
             <div className="p-8 text-center text-gray-500">No time logs found</div>
           ) : (
             <table className="w-full">
@@ -516,27 +531,31 @@ export default function TimeLogsPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
-                {timeLogs.map((log) => (
-                  <tr key={log.id} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 text-sm">{formatDate(log.date)}</td>
-                    <td className="px-6 py-4">
-                      <div className="flex items-center gap-2">
-                        <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
-                          <span className="text-blue-600 text-xs font-medium">
-                            {log.employee?.fullName?.[0] || 'E'}
-                          </span>
+                {timeLogs
+                  .filter(log => 
+                    log.employee?.fullName?.toLowerCase().includes(searchTerm.toLowerCase())
+                  )
+                  .map((log) => (
+                    <tr key={log.id} className="hover:bg-gray-50">
+                      <td className="px-6 py-4 text-sm">{formatDate(log.date)}</td>
+                      <td className="px-6 py-4">
+                        <div className="flex items-center gap-2">
+                          <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
+                            <span className="text-blue-600 text-xs font-medium">
+                              {log.employee?.fullName?.[0] || 'E'}
+                            </span>
+                          </div>
+                          <div>
+                            <p className="text-sm font-medium">{log.employee?.fullName || 'Unknown'}</p>
+                            <p className="text-xs text-gray-500">{log.employee?.employeeId}</p>
+                          </div>
                         </div>
-                        <div>
-                          <p className="text-sm font-medium">{log.employee?.fullName || 'Unknown'}</p>
-                          <p className="text-xs text-gray-500">{log.employee?.employeeId}</p>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 text-sm">{formatTime(log.clockIn)}</td>
-                    <td className="px-6 py-4 text-sm">{formatTime(log.clockOut)}</td>
-                    <td className="px-6 py-4 text-sm">{log.workHours.toFixed(2)}</td>
-                  </tr>
-                ))}
+                      </td>
+                      <td className="px-6 py-4 text-sm">{formatTime(log.clockIn)}</td>
+                      <td className="px-6 py-4 text-sm">{formatTime(log.clockOut)}</td>
+                      <td className="px-6 py-4 text-sm">{log.workHours.toFixed(2)}</td>
+                    </tr>
+                  ))}
               </tbody>
             </table>
           )}

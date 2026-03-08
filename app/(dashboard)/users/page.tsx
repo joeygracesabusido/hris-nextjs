@@ -18,6 +18,7 @@ export default function UsersPage() {
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('all');
   const [mounted, setMounted] = useState(false);
+  const [userRole, setUserRole] = useState('');
 
   const fetchUsers = async () => {
     try {
@@ -34,6 +35,14 @@ export default function UsersPage() {
   useEffect(() => {
     setMounted(true);
     fetchUsers();
+
+    const cookies = document.cookie.split(';').reduce((acc, cookie) => {
+      const [key, value] = cookie.trim().split('=');
+      acc[key] = value;
+      return acc;
+    }, {} as Record<string, string>);
+
+    setUserRole(cookies.userRole || '');
   }, []);
 
   if (!mounted) return null;
@@ -211,7 +220,7 @@ export default function UsersPage() {
                     {new Date(user.createdAt).toLocaleDateString()}
                   </td>
                   <td className="px-6 py-4">
-                    {user.status === 'FOR_APPROVAL' && (
+                    {userRole === 'ADMIN' && user.status === 'FOR_APPROVAL' && (
                       <div className="flex gap-2">
                         <button
                           onClick={() => handleStatusChange(user.id, 'APPROVED')}

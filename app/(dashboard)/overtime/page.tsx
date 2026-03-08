@@ -1,17 +1,17 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Plus, Calendar, CheckCircle, XCircle, Clock, Search, Filter, Info, FileText, Users } from 'lucide-react';
+import { Plus, Calendar, CheckCircle, XCircle, Clock, Search, Filter, Info, FileText } from 'lucide-react';
 import { format } from 'date-fns/format';
-import type { LeaveRequest, LeaveStatus } from '@/types';
+import type { OvertimeRequest, OtStatus } from '@/types';
 
-export default function LeavesPage() {
-  const [leaves, setLeaves] = useState<LeaveRequest[]>([]);
+export default function OvertimePage() {
+  const [overtimeRequests, setOvertimeRequests] = useState<OvertimeRequest[]>([]);
   const [employees, setEmployees] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [showApproveModal, setShowApproveModal] = useState(false);
-  const [selectedLeave, setSelectedLeave] = useState<LeaveRequest | null>(null);
+  const [selectedRequest, setSelectedRequest] = useState<OvertimeRequest | null>(null);
   const [userRole, setUserRole] = useState<string>('');
   const [userId, setUserId] = useState<string>('');
   const [error, setError] = useState('');
@@ -22,15 +22,13 @@ export default function LeavesPage() {
 
   const [formData, setFormData] = useState({
     employeeId: '',
-    leaveType: 'VACATION',
-    startDate: '',
-    endDate: '',
+    date: '',
+    hours: '1',
     reason: '',
-    daysCount: '1',
   });
 
   const [approvalData, setApprovalData] = useState({
-    status: 'APPROVED' as LeaveStatus,
+    status: 'APPROVED' as OtStatus,
     adminNotes: '',
   });
 
@@ -56,28 +54,28 @@ export default function LeavesPage() {
     }
     setUserRole(role);
     setUserId(id);
-    fetchLeaves();
+    fetchOvertime();
     fetchEmployees();
   }, []);
 
-  const fetchLeaves = async () => {
+  const fetchOvertime = async () => {
     try {
-      const res = await fetch('/api/leaves', { credentials: 'include' });
+      const res = await fetch('/api/overtime', { credentials: 'include' });
       const data = await res.json();
       
       if (!res.ok) {
         console.error('API Error:', data.error);
-        setError(data.error || 'Failed to fetch leaves');
-        setLeaves([]);
+        setError(data.error || 'Failed to fetch overtime requests');
+        setOvertimeRequests([]);
         return;
       }
       
       if (Array.isArray(data)) {
-        setLeaves(data);
+        setOvertimeRequests(data);
       }
     } catch (err) {
-      console.error('Failed to fetch leaves:', err);
-      setLeaves([]);
+      console.error('Failed to fetch overtime:', err);
+      setOvertimeRequests([]);
     } finally {
       setLoading(false);
     }
@@ -103,8 +101,13 @@ export default function LeavesPage() {
     e.preventDefault();
     setError('');
 
+    if (isAdmin && !formData.employeeId) {
+      setError('Please select an employee first');
+      return;
+    }
+
     try {
-      const res = await fetch('/api/leaves', {
+      const res = await fetch('/api/overtime', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
@@ -113,20 +116,18 @@ export default function LeavesPage() {
 
       if (!res.ok) {
         const data = await res.json();
-        throw new Error(data.error || 'Failed to submit leave request');
+        throw new Error(data.details ? `${data.error}: ${data.details}` : (data.error || 'Failed to submit overtime request'));
       }
 
-      alert('Leave request submitted successfully!');
+      alert('Overtime request submitted successfully!');
       setShowModal(false);
       setFormData({
         employeeId: formData.employeeId,
-        leaveType: 'VACATION',
-        startDate: '',
-        endDate: '',
+        date: '',
+        hours: '1',
         reason: '',
-        daysCount: '1',
       });
-      fetchLeaves();
+      fetchOvertime();
     } catch (err: any) {
       setError(err.message);
     }
@@ -134,37 +135,36 @@ export default function LeavesPage() {
 
   const handleReview = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedLeave) return;
+    if (!selectedRequest) return;
 
     try {
-      const res = await fetch('/api/leaves', {
+      const res = await fetch('/api/overtime', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
         body: JSON.stringify({
-          id: selectedLeave.id,
+          id: selectedRequest.id,
           ...approvalData
         }),
       });
 
-      if (!res.ok) throw new Error('Failed to update leave request');
+      if (!res.ok) throw new Error('Failed to update overtime request');
 
-      alert(`Leave request ${approvalData.status.toLowerCase()} successfully!`);
+      alert(`Overtime request ${approvalData.status.toLowerCase()} successfully!`);
       setShowApproveModal(false);
-      setSelectedLeave(null);
+      setSelectedRequest(null);
       setApprovalData({ status: 'APPROVED', adminNotes: '' });
-      fetchLeaves();
+      fetchOvertime();
     } catch (err: any) {
       alert(err.message);
     }
   };
 
-  const getStatusColor = (status: LeaveStatus) => {
+  const getStatusColor = (status: OtStatus) => {
     switch (status) {
       case 'APPROVED': return 'bg-green-100 text-green-700';
       case 'REJECTED': return 'bg-red-100 text-red-700';
       case 'PENDING': return 'bg-yellow-100 text-yellow-700';
-      case 'CANCELLED': return 'bg-gray-100 text-gray-700';
       default: return 'bg-gray-100 text-gray-700';
     }
   };
@@ -180,15 +180,15 @@ export default function LeavesPage() {
       )}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Leave Management</h1>
-          <p className="text-gray-500">Track and manage employee leaves</p>
+          <h1 className="text-2xl font-bold text-gray-900">Overtime Management</h1>
+          <p className="text-gray-500">Track and manage employee overtime requests</p>
         </div>
         <button
           onClick={() => setShowModal(true)}
           className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
         >
           <Plus className="w-5 h-5" />
-          File Leave
+          Apply for Overtime
         </button>
       </div>
 
@@ -200,7 +200,7 @@ export default function LeavesPage() {
           </div>
           <div>
             <p className="text-sm text-gray-500">Pending Requests</p>
-            <p className="text-2xl font-bold">{leaves.filter(l => l.status === 'PENDING').length}</p>
+            <p className="text-2xl font-bold">{overtimeRequests.filter(r => r.status === 'PENDING').length}</p>
           </div>
         </div>
         <div className="bg-white p-6 rounded-xl border shadow-sm flex items-center gap-4">
@@ -208,18 +208,18 @@ export default function LeavesPage() {
             <CheckCircle className="w-6 h-6 text-green-600" />
           </div>
           <div>
-            <p className="text-sm text-gray-500">Approved Leaves</p>
-            <p className="text-2xl font-bold">{leaves.filter(l => l.status === 'APPROVED').length}</p>
+            <p className="text-sm text-gray-500">Approved OT</p>
+            <p className="text-2xl font-bold">{overtimeRequests.filter(r => r.status === 'APPROVED').length}</p>
           </div>
         </div>
         <div className="bg-white p-6 rounded-xl border shadow-sm flex items-center gap-4">
           <div className="p-3 bg-blue-50 rounded-lg">
-            <Calendar className="w-6 h-6 text-blue-600" />
+            <Clock className="w-6 h-6 text-blue-600" />
           </div>
           <div>
-            <p className="text-sm text-gray-500">Total Days Taken</p>
+            <p className="text-sm text-gray-500">Total OT Hours</p>
             <p className="text-2xl font-bold">
-              {leaves.filter(l => l.status === 'APPROVED').reduce((acc, curr) => acc + curr.daysCount, 0)}
+              {overtimeRequests.filter(r => r.status === 'APPROVED').reduce((acc, curr) => acc + curr.hours, 0)}
             </p>
           </div>
         </div>
@@ -227,7 +227,7 @@ export default function LeavesPage() {
 
       <div className="bg-white rounded-xl border overflow-hidden shadow-sm">
         <div className="p-4 border-b flex items-center justify-between bg-gray-50/50">
-          <h2 className="font-semibold text-gray-900">Recent Leave Requests</h2>
+          <h2 className="font-semibold text-gray-900">Overtime Requests</h2>
           <div className="flex gap-2">
             <button className="p-2 hover:bg-white rounded-lg border text-gray-500">
               <Filter className="w-4 h-4" />
@@ -237,13 +237,13 @@ export default function LeavesPage() {
 
         {loading ? (
           <div className="p-8 text-center text-gray-500">Loading...</div>
-        ) : leaves.length === 0 ? (
+        ) : overtimeRequests.length === 0 ? (
           <div className="p-12 text-center text-gray-500">
             <div className="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-4">
-              <Calendar className="w-8 h-8 text-gray-300" />
+              <Clock className="w-8 h-8 text-gray-300" />
             </div>
-            <p className="font-medium">No leave requests found</p>
-            <p className="text-sm mt-1">Start by filing a leave request.</p>
+            <p className="font-medium">No overtime requests found</p>
+            <p className="text-sm mt-1">Start by applying for overtime.</p>
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -251,42 +251,36 @@ export default function LeavesPage() {
               <thead className="bg-gray-50">
                 <tr>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Employee</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Type</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Period</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Days</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Hours</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Action</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
-                {leaves.map((leave) => (
-                  <tr key={leave.id} className="hover:bg-gray-50 transition-colors">
+                {overtimeRequests.map((request) => (
+                  <tr key={request.id} className="hover:bg-gray-50 transition-colors">
                     <td className="px-6 py-4">
                       <div>
-                        <p className="font-medium text-gray-900">{leave.employee?.fullName}</p>
-                        <p className="text-xs text-gray-500">{leave.employee?.employeeId}</p>
+                        <p className="font-medium text-gray-900">{request.employee?.fullName}</p>
+                        <p className="text-xs text-gray-500">{request.employee?.employeeId}</p>
                       </div>
                     </td>
-                    <td className="px-6 py-4">
-                      <span className="text-sm font-medium text-gray-700 capitalize">
-                        {leave.leaveType.toLowerCase()}
-                      </span>
-                    </td>
                     <td className="px-6 py-4 text-sm text-gray-500">
-                      {format(new Date(leave.startDate), 'MMM dd')} - {format(new Date(leave.endDate), 'MMM dd, yyyy')}
+                      {format(new Date(request.date), 'MMM dd, yyyy')}
                     </td>
                     <td className="px-6 py-4 text-sm font-medium text-gray-900">
-                      {leave.daysCount}
+                      {request.hours}
                     </td>
                     <td className="px-6 py-4">
-                      <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(leave.status)}`}>
-                        {leave.status}
+                      <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(request.status)}`}>
+                        {request.status}
                       </span>
                     </td>
                     <td className="px-6 py-4">
                       <button
                         onClick={() => {
-                          setSelectedLeave(leave);
+                          setSelectedRequest(request);
                           setShowApproveModal(true);
                         }}
                         className="flex items-center gap-1 text-blue-600 hover:text-blue-800 text-sm font-medium"
@@ -303,12 +297,12 @@ export default function LeavesPage() {
         )}
       </div>
 
-      {/* File Leave Modal */}
+      {/* Apply Overtime Modal */}
       {showModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-xl w-full max-w-md shadow-xl overflow-hidden animate-in fade-in zoom-in duration-200">
             <div className="p-6 border-b flex justify-between items-center bg-blue-600 text-white">
-              <h2 className="text-xl font-bold">File Leave Request</h2>
+              <h2 className="text-xl font-bold">Apply for Overtime</h2>
               <button onClick={() => setShowModal(false)} className="p-1 hover:bg-blue-500 rounded-lg transition-colors">
                 <XCircle className="w-6 h-6" />
               </button>
@@ -373,41 +367,21 @@ export default function LeavesPage() {
               )}
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Leave Type *</label>
-                <select name="leaveType" value={formData.leaveType} onChange={handleChange} required
-                  className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500">
-                  <option value="VACATION">Vacation Leave</option>
-                  <option value="SICK">Sick Leave</option>
-                  <option value="EMERGENCY">Emergency Leave</option>
-                  <option value="MATERNITY">Maternity Leave</option>
-                  <option value="PATERNITY">Paternity Leave</option>
-                  <option value="OTHER">Other</option>
-                </select>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Start Date *</label>
-                  <input type="date" name="startDate" value={formData.startDate} onChange={handleChange} required
-                    className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500" />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">End Date *</label>
-                  <input type="date" name="endDate" value={formData.endDate} onChange={handleChange} required
-                    className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500" />
-                </div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Date *</label>
+                <input type="date" name="date" value={formData.date} onChange={handleChange} required
+                  className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500" />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Days Count *</label>
-                <input type="number" step="0.5" name="daysCount" value={formData.daysCount} onChange={handleChange} required
+                <label className="block text-sm font-medium text-gray-700 mb-1">Hours *</label>
+                <input type="number" step="0.5" name="hours" value={formData.hours} onChange={handleChange} required
                   className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500" />
               </div>
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Reason *</label>
                 <textarea name="reason" value={formData.reason} onChange={handleChange} required rows={3}
-                  className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500" placeholder="State your reason for leave..." />
+                  className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500" placeholder="State your reason for overtime..." />
               </div>
 
               <div className="flex gap-3 pt-4">
@@ -423,11 +397,11 @@ export default function LeavesPage() {
       )}
 
       {/* Review/Details Modal */}
-      {showApproveModal && selectedLeave && (
+      {showApproveModal && selectedRequest && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-xl w-full max-w-lg shadow-xl overflow-hidden animate-in fade-in zoom-in duration-200">
             <div className="p-6 border-b flex justify-between items-center bg-gray-50">
-              <h2 className="text-xl font-bold">Leave Details</h2>
+              <h2 className="text-xl font-bold">Overtime Details</h2>
               <button onClick={() => setShowApproveModal(false)} className="p-1 hover:bg-gray-200 rounded-lg transition-colors">
                 <XCircle className="w-6 h-6 text-gray-400" />
               </button>
@@ -437,32 +411,28 @@ export default function LeavesPage() {
               <div className="flex justify-between items-start border-b pb-4">
                 <div>
                   <p className="text-sm text-gray-500 uppercase font-semibold">Employee</p>
-                  <p className="text-lg font-bold">{selectedLeave.employee?.fullName}</p>
+                  <p className="text-lg font-bold">{selectedRequest.employee?.fullName}</p>
                 </div>
                 <div className="text-right">
                   <p className="text-sm text-gray-500 uppercase font-semibold">Status</p>
-                  <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold ${getStatusColor(selectedLeave.status)}`}>
-                    {selectedLeave.status}
+                  <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold ${getStatusColor(selectedRequest.status)}`}>
+                    {selectedRequest.status}
                   </span>
                 </div>
               </div>
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <p className="text-sm text-gray-500">Type</p>
-                  <p className="font-semibold capitalize">{selectedLeave.leaveType.toLowerCase()}</p>
+                  <p className="text-sm text-gray-500">Date</p>
+                  <p className="font-semibold">{format(new Date(selectedRequest.date), 'MMM dd, yyyy')}</p>
                 </div>
                 <div>
-                  <p className="text-sm text-gray-500">Duration</p>
-                  <p className="font-semibold">{selectedLeave.daysCount} Day(s)</p>
-                </div>
-                <div>
-                  <p className="text-sm text-gray-500">Dates</p>
-                  <p className="font-semibold">{format(new Date(selectedLeave.startDate), 'MMM dd')} - {format(new Date(selectedLeave.endDate), 'MMM dd, yyyy')}</p>
+                  <p className="text-sm text-gray-500">Hours</p>
+                  <p className="font-semibold">{selectedRequest.hours} Hour(s)</p>
                 </div>
                 <div>
                   <p className="text-sm text-gray-500">Filed On</p>
-                  <p className="font-semibold">{format(new Date(selectedLeave.createdAt), 'MMM dd, yyyy')}</p>
+                  <p className="font-semibold">{format(new Date(selectedRequest.createdAt), 'MMM dd, yyyy')}</p>
                 </div>
               </div>
 
@@ -470,19 +440,19 @@ export default function LeavesPage() {
                 <FileText className="w-5 h-5 text-blue-600 shrink-0 mt-0.5" />
                 <div>
                   <p className="text-xs text-blue-600 uppercase font-bold">Reason</p>
-                  <p className="text-sm text-blue-900">{selectedLeave.reason}</p>
+                  <p className="text-sm text-blue-900">{selectedRequest.reason}</p>
                 </div>
               </div>
 
-              {selectedLeave.adminNotes && (
+              {selectedRequest.adminNotes && (
                 <div className="bg-gray-50 p-3 rounded-lg">
                   <p className="text-xs text-gray-500 uppercase font-bold">Approver Notes</p>
-                  <p className="text-sm text-gray-900">{selectedLeave.adminNotes}</p>
+                  <p className="text-sm text-gray-900">{selectedRequest.adminNotes}</p>
                 </div>
               )}
 
-              {/* Approval Actions - Show only if status is PENDING and user is ADMIN or the actual approver */}
-              {selectedLeave.status === 'PENDING' && (isAdmin || selectedLeave.approverId === userId) && (
+              {/* Approval Actions - Show only if status is PENDING and user is ADMIN */}
+              {selectedRequest.status === 'PENDING' && isAdmin && (
                 <form onSubmit={handleReview} className="pt-4 border-t space-y-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Approval Notes</label>

@@ -217,6 +217,34 @@ export interface LeaveRequest {
 }
 
 // ============================================================================
+// Overtime Request Types
+// ============================================================================
+
+export type OtStatus = 'PENDING' | 'APPROVED' | 'REJECTED'
+
+export interface OvertimeRequest {
+  id: string
+  employeeId: string
+  approverId: string | null
+  date: Date
+  hours: number
+  reason: string
+  status: OtStatus
+  adminNotes: string | null
+  createdAt: Date
+  updatedAt: Date
+  employee?: {
+    id: string
+    fullName: string
+    employeeId: string
+  }
+  approver?: {
+    id: string
+    fullName: string
+  } | null
+}
+
+// ============================================================================
 // API Response Types
 // ============================================================================
 

@@ -1,11 +1,24 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
+import { cache } from '@/lib/redis';
+
+const EMPLOYEES_CACHE_KEY = 'employees:all';
 
 export async function GET() {
   try {
+    // Try to get from cache first
+    const cachedEmployees = await cache.get(EMPLOYEES_CACHE_KEY);
+    if (cachedEmployees) {
+      return NextResponse.json(cachedEmployees);
+    }
+
     const employees = await prisma.employee.findMany({
       orderBy: { createdAt: 'desc' },
     });
+
+    // Store in cache for 1 hour
+    await cache.set(EMPLOYEES_CACHE_KEY, employees, 3600);
+
     return NextResponse.json(employees);
   } catch (error) {
     console.error('Error fetching employees:', error);
@@ -91,6 +104,9 @@ export async function POST(request: Request) {
       data: employeeData,
     });
 
+    // Invalidate cache
+    await cache.del(EMPLOYEES_CACHE_KEY);
+
     return NextResponse.json(
       { message: 'Employee created successfully', employee },
       { status: 201 }
@@ -152,6 +168,9 @@ export async function PUT(request: Request) {
       data: updateData,
     });
 
+    // Invalidate cache
+    await cache.del(EMPLOYEES_CACHE_KEY);
+
     return NextResponse.json(
       { message: 'Employee updated successfully', employee },
       { status: 200 }
@@ -188,6 +207,9 @@ export async function DELETE(request: Request) {
     await prisma.employee.delete({
       where: { id },
     });
+
+    // Invalidate cache
+    await cache.del(EMPLOYEES_CACHE_KEY);
 
     return NextResponse.json(
       { message: 'Employee deleted successfully' },

@@ -3,7 +3,7 @@ import prisma from '@/lib/prisma';
 import { cookies } from 'next/headers';
 import { cache } from '@/lib/redis';
 
-const LEAVES_CACHE_PREFIX = 'leaves:';
+const OVERTIME_CACHE_PREFIX = 'overtime:';
 
 export async function GET(request: Request) {
   try {
@@ -16,20 +16,20 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const cacheKey = `${LEAVES_CACHE_PREFIX}${userRole}:${userEmail}`;
+    const cacheKey = `${OVERTIME_CACHE_PREFIX}${userRole}:${userEmail}`;
     try {
-      const cachedLeaves = await cache.get(cacheKey);
-      if (cachedLeaves) {
-        return NextResponse.json(cachedLeaves);
+      const cachedOvertime = await cache.get(cacheKey);
+      if (cachedOvertime) {
+        return NextResponse.json(cachedOvertime);
       }
     } catch (cacheErr) {
-      console.error('Failed to get from leaves cache:', cacheErr);
+      console.error('Failed to get from overtime cache:', cacheErr);
     }
 
-    let leaves;
-    // If admin, return all leaves
+    let overtime;
+    // If admin, return all overtime requests
     if (userRole === 'ADMIN') {
-      leaves = await prisma.leaveRequest.findMany({
+      overtime = await prisma.overtimeRequest.findMany({
         include: { employee: true, approver: true },
         orderBy: { createdAt: 'desc' },
       });
@@ -46,8 +46,8 @@ export async function GET(request: Request) {
 
       const employee = currentUser.employees[0];
 
-      // Find leaves filed by this employee OR leaves where this employee is the manager (approver)
-      leaves = await prisma.leaveRequest.findMany({
+      // Find overtime filed by this employee OR overtime where this employee is the manager (approver)
+      overtime = await prisma.overtimeRequest.findMany({
         where: {
           OR: [
             { employeeId: employee.id },
@@ -61,22 +61,27 @@ export async function GET(request: Request) {
 
     // Cache for 10 minutes
     try {
-      await cache.set(cacheKey, leaves, 600);
+      await cache.set(cacheKey, overtime, 600);
     } catch (cacheErr) {
-      console.error('Failed to set leaves cache:', cacheErr);
+      console.error('Failed to set overtime cache:', cacheErr);
     }
 
-    return NextResponse.json(leaves);
+    return NextResponse.json(overtime);
   } catch (error) {
-    console.error('Error fetching leaves:', error);
-    return NextResponse.json({ error: 'Failed to fetch leaves' }, { status: 500 });
+    console.error('Error fetching overtime:', error);
+    return NextResponse.json({ error: 'Failed to fetch overtime' }, { status: 500 });
   }
 }
 
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { leaveType, startDate, endDate, reason, daysCount, employeeId: providedEmployeeId } = body;
+    console.log('POST /api/overtime - Request body:', body);
+    const { date, hours, reason, employeeId: providedEmployeeId } = body;
+
+    if (!date || !hours || !reason) {
+      return NextResponse.json({ error: 'Date, hours, and reason are required' }, { status: 400 });
+    }
 
     const cookieStore = await cookies();
     const userEmail = cookieStore.get('userEmail')?.value;
@@ -102,9 +107,16 @@ export async function POST(request: Request) {
       targetEmployeeId = providedEmployeeId;
     } else {
       if (!currentUser.employees || currentUser.employees.length === 0) {
-        return NextResponse.json({ error: 'Employee record not found' }, { status: 404 });
+        return NextResponse.json({ error: 'Employee record not found for current user' }, { status: 404 });
       }
       targetEmployeeId = currentUser.employees[0].id;
+    }
+
+    console.log('POST /api/overtime - Target employee ID:', targetEmployeeId);
+
+    // Validate targetEmployeeId format (should be 24-character hex for MongoDB)
+    if (!/^[0-9a-fA-F]{24}$/.test(targetEmployeeId)) {
+      return NextResponse.json({ error: 'Invalid employee selection' }, { status: 400 });
     }
 
     // Determine immediate supervisor (manager) of the target employee
@@ -113,30 +125,40 @@ export async function POST(request: Request) {
       select: { managerId: true },
     });
 
-    const leaveRequest = await prisma.leaveRequest.create({
+    if (!targetEmployee) {
+      return NextResponse.json({ error: 'Target employee not found' }, { status: 404 });
+    }
+
+    const parsedDate = new Date(date);
+    if (isNaN(parsedDate.getTime())) {
+      return NextResponse.json({ error: 'Invalid date format' }, { status: 400 });
+    }
+
+    const overtimeRequest = await prisma.overtimeRequest.create({
       data: {
         employeeId: targetEmployeeId,
         approverId: targetEmployee?.managerId, // Set to manager if exists
-        leaveType,
-        startDate: new Date(startDate),
-        endDate: new Date(endDate),
-        daysCount: parseFloat(daysCount),
+        date: parsedDate,
+        hours: parseFloat(hours),
         reason,
         status: 'PENDING',
       },
     });
 
-    // Invalidate leaves cache
+    // Invalidate overtime cache
     try {
-      await cache.delByPattern(`${LEAVES_CACHE_PREFIX}*`);
+      await cache.delByPattern(`${OVERTIME_CACHE_PREFIX}*`);
     } catch (cacheErr) {
-      console.error('Failed to invalidate leaves cache:', cacheErr);
+      console.error('Failed to invalidate overtime cache:', cacheErr);
     }
 
-    return NextResponse.json(leaveRequest, { status: 201 });
-  } catch (error) {
-    console.error('Error creating leave request:', error);
-    return NextResponse.json({ error: 'Failed to create leave request' }, { status: 500 });
+    return NextResponse.json(overtimeRequest, { status: 201 });
+  } catch (error: any) {
+    console.error('Error creating overtime request:', error);
+    return NextResponse.json({ 
+      error: 'Failed to create overtime request',
+      details: error.message 
+    }, { status: 500 });
   }
 }
 
@@ -145,11 +167,18 @@ export async function PUT(request: Request) {
     const body = await request.json();
     const { id, status, adminNotes } = body;
 
+    const cookieStore = await cookies();
+    const userRole = cookieStore.get('userRole')?.value;
+
+    if (userRole !== 'ADMIN') {
+      return NextResponse.json({ error: 'Unauthorized. Only admins can review overtime.' }, { status: 403 });
+    }
+
     if (!id || !status) {
       return NextResponse.json({ error: 'ID and Status are required' }, { status: 400 });
     }
 
-    const leaveRequest = await prisma.leaveRequest.update({
+    const overtimeRequest = await prisma.overtimeRequest.update({
       where: { id },
       data: { 
         status, 
@@ -158,16 +187,16 @@ export async function PUT(request: Request) {
       },
     });
 
-    // Invalidate leaves cache
+    // Invalidate overtime cache
     try {
-      await cache.delByPattern(`${LEAVES_CACHE_PREFIX}*`);
+      await cache.delByPattern(`${OVERTIME_CACHE_PREFIX}*`);
     } catch (cacheErr) {
-      console.error('Failed to invalidate leaves cache:', cacheErr);
+      console.error('Failed to invalidate overtime cache:', cacheErr);
     }
 
-    return NextResponse.json(leaveRequest);
+    return NextResponse.json(overtimeRequest);
   } catch (error) {
-    console.error('Error updating leave request:', error);
-    return NextResponse.json({ error: 'Failed to update leave request' }, { status: 500 });
+    console.error('Error updating overtime request:', error);
+    return NextResponse.json({ error: 'Failed to update overtime request' }, { status: 500 });
   }
 }

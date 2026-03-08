@@ -80,6 +80,8 @@ model Employee {
   payrolls      Payroll[]
   leaveRequests LeaveRequest[] @relation("EmployeeLeaves")
   approvedLeaves LeaveRequest[] @relation("ApproverLeaves")
+  overtimeRequests OvertimeRequest[] @relation("EmployeeOvertime")
+  approvedOvertime OvertimeRequest[] @relation("ApproverOvertime")
 
   @@map("employees")
 }
@@ -122,6 +124,29 @@ model LeaveRequest {
   updatedAt    DateTime    @updatedAt
 
   @@map("leaverequests")
+}
+
+/// OvertimeRequest model for filing and approving overtime
+model OvertimeRequest {
+  id           String      @id @default(auto()) @map("_id") @db.ObjectId
+
+  employeeId   String      @db.ObjectId
+  employee     Employee    @relation("EmployeeOvertime", fields: [employeeId], references: [id], onDelete: Cascade)
+  
+  approverId   String?     @db.ObjectId
+  approver     Employee?   @relation("ApproverOvertime", fields: [approverId], references: [id])
+  
+  date         DateTime
+  hours        Float
+  reason       String
+  status       OtStatus    @default(PENDING)
+  
+  adminNotes   String?     // Notes from the approver
+  
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+
+  @@map("overtimerequests")
 }
 
 /// TimeLog model for daily attendance tracking
@@ -197,6 +222,7 @@ model Payroll {
   approvedBy      String?
   approvedAt      DateTime?
 
-  @@unique([employeeId, month, year])
+  @@unique([employeeId, periodStart, periodEnd])
+  @@index([employeeId, month, year])
   @@map("payrolls")
 }
