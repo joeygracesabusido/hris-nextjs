@@ -82,11 +82,51 @@ model Employee {
   approvedLeaves LeaveRequest[] @relation("ApproverLeaves")
   overtimeRequests OvertimeRequest[] @relation("EmployeeOvertime")
   approvedOvertime OvertimeRequest[] @relation("ApproverOvertime")
+  advances      Advance[]
 
   @@map("employees")
-}
+  }
 
-/// Leave request status enum
+  /// Advance model for employee loans (Cash Advance, SSS, Pag-IBIG)
+  model Advance {
+  id               String           @id @default(auto()) @map("_id") @db.ObjectId
+  employeeId       String           @db.ObjectId
+  employee         Employee         @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  type             String           // CASH_ADVANCE, SSS_LOAN, PAGIBIG_LOAN
+  totalAmount      Float
+  remainingBalance Float
+  deductionAmount  Float            // Amount to deduct per payroll
+
+  status           String           @default("ACTIVE") // ACTIVE, FULLY_PAID
+
+  payments         AdvancePayment[]
+
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+
+  @@map("advances")
+  }
+
+  /// AdvancePayment model for tracking deductions
+  model AdvancePayment {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  advanceId   String   @db.ObjectId
+  advance     Advance  @relation(fields: [advanceId], references: [id], onDelete: Cascade)
+
+  payrollId   String?  @db.ObjectId
+  payroll     Payroll? @relation(fields: [payrollId], references: [id])
+
+  amount      Float
+  balanceAfter Float
+  paymentDate DateTime @default(now())
+
+  notes       String?
+
+  @@map("advancepayments")
+  }
+
+  /// LeaveRequest status enum
 enum LeaveStatus {
   PENDING
   APPROVED
@@ -221,6 +261,8 @@ model Payroll {
   processedAt     DateTime?
   approvedBy      String?
   approvedAt      DateTime?
+
+  advancePayments AdvancePayment[]
 
   @@unique([employeeId, periodStart, periodEnd])
   @@index([employeeId, month, year])

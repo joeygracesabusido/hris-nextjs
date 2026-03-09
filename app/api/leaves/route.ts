@@ -7,16 +7,24 @@ const LEAVES_CACHE_PREFIX = 'leaves:';
 
 export async function GET(request: Request) {
   try {
-    const { searchParams } = new URL(request.url);
     const cookieStore = await cookies();
-    const userRole = cookieStore.get('userRole')?.value;
     const userEmail = cookieStore.get('userEmail')?.value;
 
     if (!userEmail) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const cacheKey = `${LEAVES_CACHE_PREFIX}${userRole}:${userEmail}`;
+    // Always fetch user from DB to ensure role is correct
+    const user = await prisma.user.findUnique({
+      where: { email: userEmail },
+      include: { employees: true },
+    });
+
+    if (!user) {
+      return NextResponse.json({ error: 'User not found' }, { status: 404 });
+    }
+
+    const cacheKey = `${LEAVES_CACHE_PREFIX}${user.role}:${user.email}`;
     try {
       const cachedLeaves = await cache.get(cacheKey);
       if (cachedLeaves) {
@@ -28,23 +36,17 @@ export async function GET(request: Request) {
 
     let leaves;
     // If admin, return all leaves
-    if (userRole === 'ADMIN') {
+    if (user.role === 'ADMIN') {
       leaves = await prisma.leaveRequest.findMany({
         include: { employee: true, approver: true },
         orderBy: { createdAt: 'desc' },
       });
     } else {
-      // For non-admin users, find their employee record
-      const currentUser = await prisma.user.findUnique({
-        where: { email: userEmail },
-        include: { employees: true },
-      });
-
-      if (!currentUser || !currentUser.employees || currentUser.employees.length === 0) {
+      if (!user.employees || user.employees.length === 0) {
         return NextResponse.json({ error: 'Employee record not found' }, { status: 404 });
       }
 
-      const employee = currentUser.employees[0];
+      const employee = user.employees[0];
 
       // Find leaves filed by this employee OR leaves where this employee is the manager (approver)
       leaves = await prisma.leaveRequest.findMany({
@@ -80,31 +82,35 @@ export async function POST(request: Request) {
 
     const cookieStore = await cookies();
     const userEmail = cookieStore.get('userEmail')?.value;
-    const userRole = cookieStore.get('userRole')?.value;
 
     if (!userEmail) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const currentUser = await prisma.user.findUnique({
+    const user = await prisma.user.findUnique({
       where: { email: userEmail },
       include: { employees: true },
     });
 
-    if (!currentUser) {
+    if (!user) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
 
     let targetEmployeeId: string;
 
     // If Admin provides an employeeId, use it. Otherwise use the currentUser's employee record.
-    if (userRole === 'ADMIN' && providedEmployeeId) {
-      targetEmployeeId = providedEmployeeId;
+    if (user.role === 'ADMIN') {
+      targetEmployeeId = providedEmployeeId || user.employees?.[0]?.id;
     } else {
-      if (!currentUser.employees || currentUser.employees.length === 0) {
+      // If NOT an admin but provided an employeeId, check if it's their own.
+      if (providedEmployeeId && providedEmployeeId !== user.employees?.[0]?.id) {
+        return NextResponse.json({ error: 'Unauthorized. Non-admin users can only file leave for themselves.' }, { status: 403 });
+      }
+
+      if (!user.employees || user.employees.length === 0) {
         return NextResponse.json({ error: 'Employee record not found' }, { status: 404 });
       }
-      targetEmployeeId = currentUser.employees[0].id;
+      targetEmployeeId = user.employees[0].id;
     }
 
     // Determine immediate supervisor (manager) of the target employee
@@ -142,6 +148,13 @@ export async function POST(request: Request) {
 
 export async function PUT(request: Request) {
   try {
+    const cookieStore = await cookies();
+    const userEmail = cookieStore.get('userEmail')?.value;
+
+    if (!userEmail) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     const body = await request.json();
     const { id, status, adminNotes } = body;
 
@@ -149,7 +162,33 @@ export async function PUT(request: Request) {
       return NextResponse.json({ error: 'ID and Status are required' }, { status: 400 });
     }
 
-    const leaveRequest = await prisma.leaveRequest.update({
+    // Fetch user and their employee record
+    const user = await prisma.user.findUnique({
+      where: { email: userEmail },
+      include: { employees: true },
+    });
+
+    if (!user) {
+      return NextResponse.json({ error: 'User not found' }, { status: 404 });
+    }
+
+    // Fetch the leave request to check approver
+    const leaveRequest = await prisma.leaveRequest.findUnique({
+      where: { id },
+    });
+
+    if (!leaveRequest) {
+      return NextResponse.json({ error: 'Leave request not found' }, { status: 404 });
+    }
+
+    const employeeId = user.employees?.[0]?.id;
+
+    // Only Admin can update the status
+    if (user.role !== 'ADMIN') {
+      return NextResponse.json({ error: 'Unauthorized. Only admins can review leave requests.' }, { status: 403 });
+    }
+
+    const updatedLeaveRequest = await prisma.leaveRequest.update({
       where: { id },
       data: { 
         status, 

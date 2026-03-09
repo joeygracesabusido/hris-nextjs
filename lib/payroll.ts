@@ -258,6 +258,55 @@ export function calculatePagIBIG(monthlySalary: number): {
 }
 
 // ============================================================================
+// WITHHOLDING TAX CALCULATIONS (BIR 2026)
+// ============================================================================
+
+/**
+ * BIR Withholding Tax Brackets for 2026 (Revised TRAIN Law)
+ */
+const TAX_TABLE_2026 = {
+  MONTHLY: [
+    { min: 0, max: 20833, baseTax: 0, percentage: 0, threshold: 0 },
+    { min: 20833.01, max: 33333, baseTax: 0, percentage: 15, threshold: 20833 },
+    { min: 33333.01, max: 66667, baseTax: 1875, percentage: 20, threshold: 33333 },
+    { min: 66667.01, max: 166667, baseTax: 8541.67, percentage: 25, threshold: 66667 },
+    { min: 166667.01, max: 666667, baseTax: 33541.67, percentage: 30, threshold: 166667 },
+    { min: 666667.01, max: Infinity, baseTax: 183541.67, percentage: 35, threshold: 666667 },
+  ],
+  SEMIMONTHLY: [
+    { min: 0, max: 10417, baseTax: 0, percentage: 0, threshold: 0 },
+    { min: 10417.01, max: 16667, baseTax: 0, percentage: 15, threshold: 10417 },
+    { min: 16666.01, max: 33333, baseTax: 937.50, percentage: 20, threshold: 16667 },
+    { min: 33333.01, max: 83333, baseTax: 4270.83, percentage: 25, threshold: 33333 },
+    { min: 83333.01, max: 333333, baseTax: 16770.83, percentage: 30, threshold: 83333 },
+    { min: 333333.01, max: Infinity, baseTax: 91770.83, percentage: 35, threshold: 333333 },
+  ]
+};
+
+/**
+ * Calculate withholding tax based on taxable income and pay frequency
+ * 
+ * @param taxableIncome - Gross pay minus non-taxable contributions (SSS, PhilHealth, Pag-IBIG)
+ * @param frequency - Pay frequency (MONTHLY, SEMIMONTHLY)
+ * @returns Withholding tax amount in PHP
+ */
+export function calculateWithholdingTax(taxableIncome: number, frequency: string = 'MONTHLY'): number {
+  if (taxableIncome < 0) return 0;
+
+  const table = frequency === 'SEMIMONTHLY' ? TAX_TABLE_2026.SEMIMONTHLY : TAX_TABLE_2026.MONTHLY;
+  
+  const bracket = table.find(b => taxableIncome >= b.min && taxableIncome <= b.max) 
+               || table[table.length - 1];
+
+  if (!bracket || bracket.percentage === 0) return 0;
+
+  const excess = taxableIncome - bracket.threshold;
+  const tax = bracket.baseTax + (excess * bracket.percentage / 100);
+  
+  return Math.round(tax * 100) / 100;
+}
+
+// ============================================================================
 // OVERTIME PAY CALCULATIONS
 // ============================================================================
 

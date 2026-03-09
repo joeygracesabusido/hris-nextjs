@@ -4,26 +4,12 @@ import {
   calculateSSS, 
   calculatePhilHealth, 
   calculatePagIBIG, 
+  calculateWithholdingTax,
   calculateHourlyRate as libCalculateHourlyRate 
 } from '@/lib/payroll';
 import { cache } from '@/lib/redis';
 
 const PAYROLL_CACHE_PREFIX = 'payroll:';
-
-function calculateWithholdingTax(monthlyTaxableIncome: number) {
-  const BIR_TAX_TABLE_2026 = [
-    { min: 0, max: 20833, baseTax: 0, percentage: 0, threshold: 0 },
-    { min: 20833.01, max: 33332, baseTax: 0, percentage: 20, threshold: 20833 },
-    { min: 33332.01, max: 66665, baseTax: 2500, percentage: 25, threshold: 33332 },
-    { min: 66665.01, max: 166664, baseTax: 10833.25, percentage: 30, threshold: 66665 },
-    { min: 166664.01, max: 416664, baseTax: 40833.25, percentage: 32, threshold: 166664 },
-    { min: 416664.01, max: 999999999, baseTax: 121333.25, percentage: 35, threshold: 416664 },
-  ];
-  const bracket = BIR_TAX_TABLE_2026.find(b => monthlyTaxableIncome >= b.min && monthlyTaxableIncome <= b.max);
-  if (!bracket || bracket.percentage === 0) return 0;
-  const excess = monthlyTaxableIncome - bracket.threshold;
-  return Math.max(0, bracket.baseTax + (excess * bracket.percentage / 100));
-}
 
 function calculateSemiMonthlySalary(monthlySalary: number, frequency: string): number {
   if (frequency === 'SEMIMONTHLY') {
@@ -57,7 +43,13 @@ function countWorkingDays(start: Date, end: Date): number {
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { employeeId, periodStart, periodEnd, frequency } = body;
+    const { 
+      employeeId, 
+      periodStart, 
+      periodEnd, 
+      frequency, 
+      deductions = ['sss', 'philhealth', 'pagibig', 'tax', 'cash_advance', 'sss_loan', 'pagibig_loan'] 
+    } = body;
 
     if (!periodStart || !periodEnd || !frequency) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
@@ -65,6 +57,17 @@ export async function POST(request: Request) {
 
     const startDate = new Date(periodStart);
     const endDate = new Date(periodEnd);
+
+    const includeSSS = deductions.includes('sss');
+    const includePhilHealth = deductions.includes('philhealth');
+    const includePagIBIG = deductions.includes('pagibig');
+    const includeTax = deductions.includes('tax');
+    
+    // Map frontend IDs to DB types
+    const selectedAdvanceTypes = [];
+    if (deductions.includes('cash_advance')) selectedAdvanceTypes.push('CASH_ADVANCE');
+    if (deductions.includes('sss_loan')) selectedAdvanceTypes.push('SSS_LOAN');
+    if (deductions.includes('pagibig_loan')) selectedAdvanceTypes.push('PAGIBIG_LOAN');
 
     if (employeeId === 'all') {
       const employees = await prisma.employee.findMany();
@@ -138,15 +141,43 @@ export async function POST(request: Request) {
           const grossPay = periodSalary + otPay;
 
           // Using lib/payroll functions for 2026 rates
-          const sss = calculateSSS(monthlySalary);
-          const philHealth = calculatePhilHealth(monthlySalary);
-          const pagIbig = calculatePagIBIG(monthlySalary);
+          const sss = includeSSS ? calculateSSS(monthlySalary) : { employeeShare: 0, employerShare: 0 };
+          const philHealth = includePhilHealth ? calculatePhilHealth(monthlySalary) : { employeeShare: 0, employerShare: 0 };
+          const pagIbig = includePagIBIG ? calculatePagIBIG(monthlySalary) : { employeeShare: 0, employerShare: 0 };
           
           const totalGovDeductions = sss.employeeShare + philHealth.employeeShare + pagIbig.employeeShare;
           const otherDeductions = absenceDeduction + lateDeduction + undertimeDeduction;
           const taxableIncome = grossPay - totalGovDeductions;
-          const withholdingTax = calculateWithholdingTax(taxableIncome);
-          const totalDeductions = totalGovDeductions + withholdingTax + otherDeductions;
+          const withholdingTax = includeTax ? calculateWithholdingTax(taxableIncome, frequency) : 0;
+          
+          // Fetch active advances for this employee if selected by type
+          const activeAdvances = selectedAdvanceTypes.length > 0 ? await prisma.advance.findMany({
+            where: {
+              employeeId: employee.id,
+              status: 'ACTIVE',
+              remainingBalance: { gt: 0 },
+              type: { in: selectedAdvanceTypes }
+            }
+          }) : [];
+
+          let totalAdvanceDeductions = 0;
+          const advancePaymentsData = [];
+
+          for (const advance of activeAdvances) {
+            // Only deduct up to what's remaining
+            const deduction = Math.min(advance.deductionAmount, advance.remainingBalance);
+            if (deduction > 0) {
+              totalAdvanceDeductions += deduction;
+              advancePaymentsData.push({
+                advanceId: advance.id,
+                amount: deduction,
+                balanceAfter: advance.remainingBalance - deduction,
+                notes: `Deducted from payroll for ${startDate.toLocaleDateString()} - ${endDate.toLocaleDateString()}`
+              });
+            }
+          }
+
+          const totalDeductions = totalGovDeductions + withholdingTax + otherDeductions + totalAdvanceDeductions;
           const netPay = grossPay - totalDeductions;
 
           const payroll = await prisma.payroll.create({
@@ -169,13 +200,32 @@ export async function POST(request: Request) {
               pagibigEmployee: pagIbig.employeeShare,
               pagibigEmployer: pagIbig.employerShare,
               withholdingTax,
-              otherDeductions,
+              otherDeductions: otherDeductions + totalAdvanceDeductions, // Include advances in other deductions for simple storage
               totalDeductions,
               netPay,
               status: 'PROCESSED',
               processedAt: new Date(),
             },
           });
+
+          // Create advance payment records and update advance balances
+          for (const paymentData of advancePaymentsData) {
+            await prisma.advancePayment.create({
+              data: {
+                ...paymentData,
+                payrollId: payroll.id,
+                paymentDate: new Date()
+              }
+            });
+
+            await prisma.advance.update({
+              where: { id: paymentData.advanceId },
+              data: {
+                remainingBalance: paymentData.balanceAfter,
+                status: paymentData.balanceAfter <= 0 ? 'FULLY_PAID' : 'ACTIVE'
+              }
+            });
+          }
 
           results.push({
             payroll,
@@ -287,17 +337,43 @@ export async function POST(request: Request) {
     const grossPay = periodSalary + otPay;
 
     // Using lib/payroll functions for 2026 rates
-    const sss = calculateSSS(monthlySalary);
-    const philHealth = calculatePhilHealth(monthlySalary);
-    const pagIbig = calculatePagIBIG(monthlySalary);
+    const sss = includeSSS ? calculateSSS(monthlySalary) : { employeeShare: 0, employerShare: 0 };
+    const philHealth = includePhilHealth ? calculatePhilHealth(monthlySalary) : { employeeShare: 0, employerShare: 0 };
+    const pagIbig = includePagIBIG ? calculatePagIBIG(monthlySalary) : { employeeShare: 0, employerShare: 0 };
 
     const totalGovDeductions = sss.employeeShare + philHealth.employeeShare + pagIbig.employeeShare;
     const otherDeductions = absenceDeduction + lateDeduction + undertimeDeduction;
 
     const taxableIncome = grossPay - totalGovDeductions;
-    const withholdingTax = calculateWithholdingTax(taxableIncome);
+    const withholdingTax = includeTax ? calculateWithholdingTax(taxableIncome, frequency) : 0;
 
-    const totalDeductions = totalGovDeductions + withholdingTax + otherDeductions;
+    // Fetch active advances for this employee if selected by type
+    const activeAdvances = selectedAdvanceTypes.length > 0 ? await prisma.advance.findMany({
+      where: {
+        employeeId,
+        status: 'ACTIVE',
+        remainingBalance: { gt: 0 },
+        type: { in: selectedAdvanceTypes }
+      }
+    }) : [];
+
+    let totalAdvanceDeductions = 0;
+    const advancePaymentsData = [];
+
+    for (const advance of activeAdvances) {
+      const deduction = Math.min(advance.deductionAmount, advance.remainingBalance);
+      if (deduction > 0) {
+        totalAdvanceDeductions += deduction;
+        advancePaymentsData.push({
+          advanceId: advance.id,
+          amount: deduction,
+          balanceAfter: advance.remainingBalance - deduction,
+          notes: `Deducted from payroll for ${startDate.toLocaleDateString()} - ${endDate.toLocaleDateString()}`
+        });
+      }
+    }
+
+    const totalDeductions = totalGovDeductions + withholdingTax + otherDeductions + totalAdvanceDeductions;
     const netPay = grossPay - totalDeductions;
 
     const payroll = await prisma.payroll.create({
@@ -320,7 +396,7 @@ export async function POST(request: Request) {
         pagibigEmployee: pagIbig.employeeShare,
         pagibigEmployer: pagIbig.employerShare,
         withholdingTax,
-        otherDeductions,
+        otherDeductions: otherDeductions + totalAdvanceDeductions,
         totalDeductions,
         netPay,
         status: 'PROCESSED',
@@ -328,11 +404,31 @@ export async function POST(request: Request) {
       },
     });
 
-    // Invalidate payroll cache
+    // Create advance payment records and update advance balances
+    for (const paymentData of advancePaymentsData) {
+      await prisma.advancePayment.create({
+        data: {
+          ...paymentData,
+          payrollId: payroll.id,
+          paymentDate: new Date()
+        }
+      });
+
+      await prisma.advance.update({
+        where: { id: paymentData.advanceId },
+        data: {
+          remainingBalance: paymentData.balanceAfter,
+          status: paymentData.balanceAfter <= 0 ? 'FULLY_PAID' : 'ACTIVE'
+        }
+      });
+    }
+
+    // Invalidate payroll and advances cache
     try {
       await cache.delByPattern(`${PAYROLL_CACHE_PREFIX}*`);
+      await cache.delByPattern('advances:*');
     } catch (cacheErr) {
-      console.error('Failed to invalidate payroll cache:', cacheErr);
+      console.error('Failed to invalidate caches:', cacheErr);
     }
 
     return NextResponse.json({

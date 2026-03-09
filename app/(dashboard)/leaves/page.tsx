@@ -14,7 +14,9 @@ export default function LeavesPage() {
   const [selectedLeave, setSelectedLeave] = useState<LeaveRequest | null>(null);
   const [userRole, setUserRole] = useState<string>('');
   const [userId, setUserId] = useState<string>('');
+  const [employeeId, setEmployeeId] = useState<string>('');
   const [error, setError] = useState('');
+  const [searchTerm, setSearchTerm] = useState('');
   
   // Autocomplete state
   const [employeeSearch, setEmployeeSearch] = useState('');
@@ -58,7 +60,23 @@ export default function LeavesPage() {
     setUserId(id);
     fetchLeaves();
     fetchEmployees();
+    fetchCurrentUser(id);
   }, []);
+
+  const fetchCurrentUser = async (uid: string) => {
+    try {
+      const res = await fetch(`/api/current-user?userId=${uid}`, { credentials: 'include' });
+      const data = await res.json();
+      if (data.employees && data.employees.length > 0) {
+        setEmployeeId(data.employees[0].id);
+      }
+      if (data.role) {
+        setUserRole(data.role);
+      }
+    } catch (err) {
+      console.error('Failed to fetch current user info:', err);
+    }
+  };
 
   const fetchLeaves = async () => {
     try {
@@ -171,6 +189,16 @@ export default function LeavesPage() {
 
   const isAdmin = userRole === 'ADMIN';
 
+  const filteredLeaves = leaves.filter(leave => {
+    const searchStr = searchTerm.toLowerCase();
+    return (
+      leave.employee?.fullName.toLowerCase().includes(searchStr) ||
+      leave.employee?.employeeId.toLowerCase().includes(searchStr) ||
+      leave.leaveType.toLowerCase().includes(searchStr) ||
+      leave.status.toLowerCase().includes(searchStr)
+    );
+  });
+
   return (
     <div className="space-y-6">
       {error && (
@@ -200,7 +228,7 @@ export default function LeavesPage() {
           </div>
           <div>
             <p className="text-sm text-gray-500">Pending Requests</p>
-            <p className="text-2xl font-bold">{leaves.filter(l => l.status === 'PENDING').length}</p>
+            <p className="text-2xl font-bold">{filteredLeaves.filter(l => l.status === 'PENDING').length}</p>
           </div>
         </div>
         <div className="bg-white p-6 rounded-xl border shadow-sm flex items-center gap-4">
@@ -209,7 +237,7 @@ export default function LeavesPage() {
           </div>
           <div>
             <p className="text-sm text-gray-500">Approved Leaves</p>
-            <p className="text-2xl font-bold">{leaves.filter(l => l.status === 'APPROVED').length}</p>
+            <p className="text-2xl font-bold">{filteredLeaves.filter(l => l.status === 'APPROVED').length}</p>
           </div>
         </div>
         <div className="bg-white p-6 rounded-xl border shadow-sm flex items-center gap-4">
@@ -219,7 +247,7 @@ export default function LeavesPage() {
           <div>
             <p className="text-sm text-gray-500">Total Days Taken</p>
             <p className="text-2xl font-bold">
-              {leaves.filter(l => l.status === 'APPROVED').reduce((acc, curr) => acc + curr.daysCount, 0)}
+              {filteredLeaves.filter(l => l.status === 'APPROVED').reduce((acc, curr) => acc + curr.daysCount, 0)}
             </p>
           </div>
         </div>
@@ -229,6 +257,18 @@ export default function LeavesPage() {
         <div className="p-4 border-b flex items-center justify-between bg-gray-50/50">
           <h2 className="font-semibold text-gray-900">Recent Leave Requests</h2>
           <div className="flex gap-2">
+            <div className="relative">
+              <div className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400">
+                <Search className="w-4 h-4" />
+              </div>
+              <input
+                type="text"
+                placeholder="Search leaves..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-9 pr-4 py-1.5 text-sm border rounded-lg focus:ring-2 focus:ring-blue-500 bg-white"
+              />
+            </div>
             <button className="p-2 hover:bg-white rounded-lg border text-gray-500">
               <Filter className="w-4 h-4" />
             </button>
@@ -237,13 +277,13 @@ export default function LeavesPage() {
 
         {loading ? (
           <div className="p-8 text-center text-gray-500">Loading...</div>
-        ) : leaves.length === 0 ? (
+        ) : filteredLeaves.length === 0 ? (
           <div className="p-12 text-center text-gray-500">
             <div className="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-4">
               <Calendar className="w-8 h-8 text-gray-300" />
             </div>
             <p className="font-medium">No leave requests found</p>
-            <p className="text-sm mt-1">Start by filing a leave request.</p>
+            <p className="text-sm mt-1">{searchTerm ? 'Try adjusting your search' : 'Start by filing a leave request.'}</p>
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -259,7 +299,7 @@ export default function LeavesPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
-                {leaves.map((leave) => (
+                {filteredLeaves.map((leave) => (
                   <tr key={leave.id} className="hover:bg-gray-50 transition-colors">
                     <td className="px-6 py-4">
                       <div>
@@ -481,8 +521,8 @@ export default function LeavesPage() {
                 </div>
               )}
 
-              {/* Approval Actions - Show only if status is PENDING and user is ADMIN or the actual approver */}
-              {selectedLeave.status === 'PENDING' && (isAdmin || selectedLeave.approverId === userId) && (
+              {/* Approval Actions - Show only if status is PENDING and user is ADMIN */}
+              {selectedLeave.status === 'PENDING' && isAdmin && (
                 <form onSubmit={handleReview} className="pt-4 border-t space-y-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Approval Notes</label>

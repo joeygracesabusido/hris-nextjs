@@ -97,7 +97,22 @@ export default function PayrollPage() {
     frequency: 'MONTHLY',
     periodStart: '',
     periodEnd: '',
+    deductions: ['sss', 'philhealth', 'pagibig', 'tax', 'cash_advance', 'sss_loan', 'pagibig_loan'],
   });
+
+  const toggleDeduction = (deduction: string) => {
+    setFormData(prev => {
+      const isSelected = prev.deductions.includes(deduction);
+      const newDeductions = isSelected
+        ? prev.deductions.filter(d => d !== deduction)
+        : [...prev.deductions, deduction];
+      
+      return {
+        ...prev,
+        deductions: newDeductions
+      };
+    });
+  };
 
   const isAllEmployees = formData.employeeId === 'all';
 
@@ -342,6 +357,37 @@ export default function PayrollPage() {
               required
               className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             />
+          </div>
+
+          <div className="md:col-span-4">
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Include Deductions
+            </label>
+            <div className="flex flex-wrap gap-4 p-4 bg-gray-50 rounded-lg border border-dashed">
+              {[
+                { id: 'sss', label: 'SSS' },
+                { id: 'philhealth', label: 'PhilHealth' },
+                { id: 'pagibig', label: 'Pag-IBIG' },
+                { id: 'tax', label: 'Withholding Tax' },
+                { id: 'cash_advance', label: 'Cash Advance' },
+                { id: 'sss_loan', label: 'SSS Loan' },
+                { id: 'pagibig_loan', label: 'Pag-IBIG Loan' },
+              ].map((d) => (
+                <label key={d.id} className="flex items-center gap-2 cursor-pointer group px-2 py-1 hover:bg-white rounded transition-colors">
+                  <input
+                    type="checkbox"
+                    id={`deduction-${d.id}`}
+                    checked={formData.deductions.includes(d.id)}
+                    onChange={() => toggleDeduction(d.id)}
+                    onClick={(e) => e.stopPropagation()}
+                    className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500 cursor-pointer"
+                  />
+                  <span className="text-sm font-medium text-gray-700 group-hover:text-blue-600 transition-colors cursor-pointer select-none">
+                    {d.label}
+                  </span>
+                </label>
+              ))}
+            </div>
           </div>
 
           <div className="md:col-span-4">
