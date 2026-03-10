@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { Clock, Play, Square, Calendar, User, Upload, Download, FileSpreadsheet, LogOut, Search, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { Clock, Play, Square, Upload, Download, FileSpreadsheet, LogOut, Search, AlertCircle, CheckCircle2 } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -525,7 +525,7 @@ export default function TimeLogsPage() {
 
           {todayLog && employeeId === todayLog.employeeId && (
             <div className="w-full max-w-md bg-gray-50 rounded-lg p-4">
-              <p className="text-sm font-medium text-gray-700 mb-2">Today's Status</p>
+              <p className="text-sm font-medium text-gray-700 mb-2">Today&apos;s Status</p>
               <div className="grid grid-cols-2 gap-4 text-sm">
                 <div>
                   <p className="text-gray-500">Clock In</p>

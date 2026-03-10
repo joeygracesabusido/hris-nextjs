@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Calculator, DollarSign, Clock, Calendar, CheckCircle, XCircle, User, FileText, Download, Printer, ChevronDown, ChevronUp } from 'lucide-react';
+import { Calculator, DollarSign, Clock, CheckCircle, FileText, Download, Printer, ChevronDown, ChevronUp } from 'lucide-react';
 
 interface Employee {
   id: string;
@@ -87,7 +87,6 @@ export default function PayrollPage() {
   const [computing, setComputing] = useState(false);
   const [result, setResult] = useState<PayrollResult | null>(null);
   const [error, setError] = useState('');
-  const [userRole, setUserRole] = useState('');
   const [mounted, setMounted] = useState(false);
   const [expandedPayrollId, setExpandedPayrollId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -99,6 +98,7 @@ export default function PayrollPage() {
     periodEnd: '',
     deductions: ['sss', 'philhealth', 'pagibig', 'tax', 'cash_advance', 'sss_loan', 'pagibig_loan'],
   });
+  const [userRole, setUserRole] = useState<string>('');
 
   const toggleDeduction = (deduction: string) => {
     setFormData(prev => {
@@ -222,17 +222,17 @@ export default function PayrollPage() {
         setResult({
           payroll: {
             id: 'all',
-            basicSalary: data.results?.reduce((sum: number, r: any) => sum + r.payroll.basicSalary, 0) || 0,
-            otHours: data.results?.reduce((sum: number, r: any) => sum + r.payroll.otHours, 0) || 0,
-            otPay: data.results?.reduce((sum: number, r: any) => sum + r.payroll.otPay, 0) || 0,
-            grossPay: data.results?.reduce((sum: number, r: any) => sum + r.payroll.grossPay, 0) || 0,
-            sssEmployee: data.results?.reduce((sum: number, r: any) => sum + r.payroll.sssEmployee, 0) || 0,
-            philhealthEmployee: data.results?.reduce((sum: number, r: any) => sum + r.payroll.philhealthEmployee, 0) || 0,
-            pagibigEmployee: data.results?.reduce((sum: number, r: any) => sum + r.payroll.pagibigEmployee, 0) || 0,
-            withholdingTax: data.results?.reduce((sum: number, r: any) => sum + r.payroll.withholdingTax, 0) || 0,
-            otherDeductions: data.results?.reduce((sum: number, r: any) => sum + r.payroll.otherDeductions, 0) || 0,
-            totalDeductions: data.results?.reduce((sum: number, r: any) => sum + r.payroll.totalDeductions, 0) || 0,
-            netPay: data.results?.reduce((sum: number, r: any) => sum + r.payroll.netPay, 0) || 0,
+            basicSalary: data.results?.reduce((sum: number, r: { payroll: { basicSalary: number } }) => sum + r.payroll.basicSalary, 0) || 0,
+            otHours: data.results?.reduce((sum: number, r: { payroll: { otHours: number } }) => sum + r.payroll.otHours, 0) || 0,
+            otPay: data.results?.reduce((sum: number, r: { payroll: { otPay: number } }) => sum + r.payroll.otPay, 0) || 0,
+            grossPay: data.results?.reduce((sum: number, r: { payroll: { grossPay: number } }) => sum + r.payroll.grossPay, 0) || 0,
+            sssEmployee: data.results?.reduce((sum: number, r: { payroll: { sssEmployee: number } }) => sum + r.payroll.sssEmployee, 0) || 0,
+            philhealthEmployee: data.results?.reduce((sum: number, r: { payroll: { philhealthEmployee: number } }) => sum + r.payroll.philhealthEmployee, 0) || 0,
+            pagibigEmployee: data.results?.reduce((sum: number, r: { payroll: { pagibigEmployee: number } }) => sum + r.payroll.pagibigEmployee, 0) || 0,
+            withholdingTax: data.results?.reduce((sum: number, r: { payroll: { withholdingTax: number } }) => sum + r.payroll.withholdingTax, 0) || 0,
+            otherDeductions: data.results?.reduce((sum: number, r: { payroll: { otherDeductions: number } }) => sum + r.payroll.otherDeductions, 0) || 0,
+            totalDeductions: data.results?.reduce((sum: number, r: { payroll: { totalDeductions: number } }) => sum + r.payroll.totalDeductions, 0) || 0,
+            netPay: data.results?.reduce((sum: number, r: { payroll: { netPay: number } }) => sum + r.payroll.netPay, 0) || 0,
             periodStart: formData.periodStart,
             periodEnd: formData.periodEnd,
           },
@@ -244,12 +244,13 @@ export default function PayrollPage() {
             totals: { totalOtHours: 0, leaveDays: 0, absentDays: 0, lateMinutes: 0, undertimeMinutes: 0 },
             netPay: 0,
           },
-        } as any);
+        } as unknown as PayrollResult);
         fetchPayrollRecords();
       } else {
         setResult(data);
       }
     } catch (err) {
+      console.error('Payroll computation error:', err);
       setError('Failed to compute payroll');
     } finally {
       setComputing(false);
@@ -567,7 +568,7 @@ export default function PayrollPage() {
           </div>
           {filteredPayrollRecords.length === 0 && searchQuery ? (
             <div className="p-6 text-center text-gray-500">
-              No payroll records found for "{searchQuery}"
+              No payroll records found for &quot;{searchQuery}&quot;
             </div>
           ) : (
           <div className="overflow-x-auto">

@@ -7,7 +7,6 @@ const OVERTIME_CACHE_PREFIX = 'overtime:';
 
 export async function GET(request: Request) {
   try {
-    const { searchParams } = new URL(request.url);
     const cookieStore = await cookies();
     const userRole = cookieStore.get('userRole')?.value;
     const userEmail = cookieStore.get('userEmail')?.value;

@@ -1,20 +1,18 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Plus, Calendar, CheckCircle, XCircle, Clock, Search, Filter, Info, FileText, Users } from 'lucide-react';
+import { Plus, Calendar, CheckCircle, XCircle, Clock, Search, Filter, Info, FileText } from 'lucide-react';
 import { format } from 'date-fns/format';
-import type { LeaveRequest, LeaveStatus } from '@/types';
+import type { LeaveRequest, LeaveStatus, EmployeeWithUser } from '@/types';
 
 export default function LeavesPage() {
   const [leaves, setLeaves] = useState<LeaveRequest[]>([]);
-  const [employees, setEmployees] = useState<any[]>([]);
+  const [employees, setEmployees] = useState<EmployeeWithUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [showApproveModal, setShowApproveModal] = useState(false);
   const [selectedLeave, setSelectedLeave] = useState<LeaveRequest | null>(null);
   const [userRole, setUserRole] = useState<string>('');
-  const [userId, setUserId] = useState<string>('');
-  const [employeeId, setEmployeeId] = useState<string>('');
   const [error, setError] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   
@@ -57,7 +55,6 @@ export default function LeavesPage() {
       return;
     }
     setUserRole(role);
-    setUserId(id);
     fetchLeaves();
     fetchEmployees();
     fetchCurrentUser(id);
@@ -67,9 +64,6 @@ export default function LeavesPage() {
     try {
       const res = await fetch(`/api/current-user?userId=${uid}`, { credentials: 'include' });
       const data = await res.json();
-      if (data.employees && data.employees.length > 0) {
-        setEmployeeId(data.employees[0].id);
-      }
       if (data.role) {
         setUserRole(data.role);
       }
@@ -145,8 +139,8 @@ export default function LeavesPage() {
         daysCount: '1',
       });
       fetchLeaves();
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'An unknown error occurred');
     }
   };
 
@@ -172,8 +166,8 @@ export default function LeavesPage() {
       setSelectedLeave(null);
       setApprovalData({ status: 'APPROVED', adminNotes: '' });
       fetchLeaves();
-    } catch (err: any) {
-      alert(err.message);
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : 'An unknown error occurred');
     }
   };
 

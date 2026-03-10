@@ -1,13 +1,6 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
-
-interface ImportTimeLog {
-  employeeNumber: string;
-  date: string;
-  clockIn: string;
-  clockOut: string;
-  notes?: string;
-}
+import * as XLSX from 'xlsx';
 
 export async function POST(request: Request) {
   try {
@@ -24,11 +17,10 @@ export async function POST(request: Request) {
     const bytes = await file.arrayBuffer();
     const buffer = Buffer.from(bytes);
 
-    const XLSX = require('xlsx');
     const workbook = XLSX.read(buffer, { type: 'buffer', cellDates: true });
     const sheetName = workbook.SheetNames[0];
     const worksheet = workbook.Sheets[sheetName];
-    const data = XLSX.utils.sheet_to_json(worksheet) as any[];
+    const data = XLSX.utils.sheet_to_json(worksheet) as Record<string, any>[];
 
     if (!data || data.length === 0) {
       return NextResponse.json(

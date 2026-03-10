@@ -1,19 +1,18 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Plus, Calendar, CheckCircle, XCircle, Clock, Search, Filter, Info, FileText } from 'lucide-react';
+import { Plus, CheckCircle, XCircle, Clock, Search, Filter, Info, FileText } from 'lucide-react';
 import { format } from 'date-fns/format';
-import type { OvertimeRequest, OtStatus } from '@/types';
+import type { OvertimeRequest, OtStatus, EmployeeWithUser } from '@/types';
 
 export default function OvertimePage() {
   const [overtimeRequests, setOvertimeRequests] = useState<OvertimeRequest[]>([]);
-  const [employees, setEmployees] = useState<any[]>([]);
+  const [employees, setEmployees] = useState<EmployeeWithUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [showApproveModal, setShowApproveModal] = useState(false);
   const [selectedRequest, setSelectedRequest] = useState<OvertimeRequest | null>(null);
   const [userRole, setUserRole] = useState<string>('');
-  const [userId, setUserId] = useState<string>('');
   const [error, setError] = useState('');
   
   // Autocomplete state
@@ -42,18 +41,16 @@ export default function OvertimePage() {
       }, {} as Record<string, string>);
       return { 
         role: cookies.userRole || '', 
-        id: cookies.userId || '',
         loggedIn: cookies.isLoggedIn === 'true' 
       };
     };
     
-    const { role, id, loggedIn } = getCookies();
+    const { role, loggedIn } = getCookies();
     if (!loggedIn) {
       window.location.href = '/login';
       return;
     }
     setUserRole(role);
-    setUserId(id);
     fetchOvertime();
     fetchEmployees();
   }, []);
@@ -128,8 +125,8 @@ export default function OvertimePage() {
         reason: '',
       });
       fetchOvertime();
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'An unknown error occurred');
     }
   };
 
@@ -155,8 +152,8 @@ export default function OvertimePage() {
       setSelectedRequest(null);
       setApprovalData({ status: 'APPROVED', adminNotes: '' });
       fetchOvertime();
-    } catch (err: any) {
-      alert(err.message);
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : 'An unknown error occurred');
     }
   };
 

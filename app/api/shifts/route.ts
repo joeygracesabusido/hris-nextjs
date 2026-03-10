@@ -12,12 +12,14 @@ export async function GET() {
     console.log(`[Shifts API] Successfully fetched ${shifts.length} shifts`);
     
     return NextResponse.json(shifts);
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('[Shifts API] CRITICAL ERROR:', error);
-    return NextResponse.json({ 
-      error: 'Failed to fetch shifts', 
-      details: error.message,
-      code: error.code
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    const errorCode = error instanceof Error ? (error as { code?: string }).code : undefined;
+    return NextResponse.json({
+      error: 'Failed to fetch shifts',
+      details: errorMessage,
+      code: errorCode
     }, { status: 500 });
   }
 }
@@ -42,11 +44,13 @@ export async function POST(request: Request) {
     });
 
     return NextResponse.json(shift);
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('[Shifts API] POST Error:', error);
-    if (error.code === 'P2002') {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    const errorCode = error instanceof Error ? (error as { code?: string }).code : undefined;
+    if (errorCode === 'P2002') {
       return NextResponse.json({ error: 'A shift with this name already exists' }, { status: 400 });
     }
-    return NextResponse.json({ error: 'Failed to create shift', details: error.message }, { status: 500 });
+    return NextResponse.json({ error: 'Failed to create shift', details: errorMessage }, { status: 500 });
   }
 }

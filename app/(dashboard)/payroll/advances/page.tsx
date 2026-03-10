@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Plus, Search, DollarSign, Calendar, Clock, CheckCircle, Info, FileText, User, ArrowLeft, Trash2 } from 'lucide-react';
+import { Plus, Search, DollarSign, Clock, ArrowLeft, Trash2 } from 'lucide-react';
 import { format } from 'date-fns/format';
 import Link from 'next/link';
 
@@ -111,8 +111,8 @@ export default function AdvancesPage() {
       setFormData({ employeeId: '', type: 'CASH_ADVANCE', totalAmount: '', deductionAmount: '' });
       setEmployeeSearch('');
       fetchAdvances();
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'An unknown error occurred');
     }
   };
 
@@ -123,8 +123,8 @@ export default function AdvancesPage() {
       const res = await fetch(`/api/advances?id=${id}`, { method: 'DELETE' });
       if (!res.ok) throw new Error('Failed to delete advance');
       fetchAdvances();
-    } catch (err: any) {
-      alert(err.message);
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : 'An unknown error occurred');
     }
   };
 
@@ -136,6 +136,7 @@ export default function AdvancesPage() {
       setSelectedAdvance(data);
       setShowDetails(true);
     } catch (err) {
+      console.error('Failed to load advance details:', err);
       alert('Failed to load advance details');
     }
   };
