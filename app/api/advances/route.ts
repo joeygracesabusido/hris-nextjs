@@ -9,7 +9,7 @@ const ADVANCES_CACHE_PREFIX = 'advances:';
 
 // Helper to get the model safely
 function getAdvanceModel(p: PrismaClient) {
-  return p.advance || p.advances;
+  return p.advance;
 }
 
 export async function GET(request: Request) {
