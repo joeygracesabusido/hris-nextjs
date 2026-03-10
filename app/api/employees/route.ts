@@ -65,7 +65,7 @@ export async function PUT(request: Request) {
 
     if (!id) return NextResponse.json({ error: 'Employee ID is required' }, { status: 400 });
 
-    const updateData: any = {};
+    const updateData: Record<string, unknown> = {};
     const allowedFields = [
       'fullName', 'email', 'position', 'department', 'basicSalary', 'dailyRate', 'payType',
       'payrollFrequency', 'managerId', 'hireDate', 'tin', 'sssNo', 'philhealthNo', 
@@ -91,9 +91,10 @@ export async function PUT(request: Request) {
 
     await cache.del(EMPLOYEES_CACHE_KEY);
     return NextResponse.json({ message: 'Employee updated successfully', employee }, { status: 200 });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Error updating employee:', error);
-    return NextResponse.json({ error: 'Failed to update employee', details: error.message }, { status: 500 });
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    return NextResponse.json({ error: 'Failed to update employee', details: errorMessage }, { status: 500 });
   }
 }
 

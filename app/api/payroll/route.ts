@@ -498,7 +498,7 @@ export async function GET(request: Request) {
       console.error('Failed to get from payroll cache:', cacheErr);
     }
 
-    const where: any = {};
+    const where: Record<string, number | string> = {};
 
     if (employeeId) where.employeeId = employeeId;
     if (month) where.month = parseInt(month);

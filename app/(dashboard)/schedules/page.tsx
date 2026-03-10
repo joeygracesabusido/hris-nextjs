@@ -127,9 +127,9 @@ export default function ShiftSchedulePage() {
       setSchedules(Array.isArray(scheduleDataJson.schedules) ? scheduleDataJson.schedules : []);
       
       console.log(`[Fetch] Loaded ${scheduleDataJson.employees?.length || 0} employees`);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('[Fetch] Error:', err);
-      setError(err.message || 'An unexpected error occurred');
+      setError(err instanceof Error ? err.message : 'An unexpected error occurred');
     } finally {
       setLoading(false);
     }

@@ -2,6 +2,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { startOfDay, endOfDay, parseISO, isValid } from 'date-fns';
 
+interface PrismaError extends Error {
+  code?: string;
+}
+
 export const dynamic = 'force-dynamic';
 
 export async function GET(request: NextRequest) {
@@ -55,13 +59,14 @@ export async function GET(request: NextRequest) {
       employees: employees || [], 
       schedules: schedules || [] 
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('[Schedules API] Critical GET Error:', error);
-    return NextResponse.json({ 
-      error: 'Failed to fetch schedules', 
-      details: error.message,
-      code: error.code,
-      stack: error.stack
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    const errorCode = error instanceof Error ? (error as PrismaError).code : undefined;
+    return NextResponse.json({
+      error: 'Failed to fetch schedules',
+      details: errorMessage,
+      code: errorCode,
     }, { status: 500 });
   }
 }
@@ -106,8 +111,9 @@ export async function POST(request: Request) {
     });
 
     return NextResponse.json(schedule);
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('[Schedules API] Critical POST Error:', error);
-    return NextResponse.json({ error: 'Failed to update schedule', details: error.message }, { status: 500 });
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    return NextResponse.json({ error: 'Failed to update schedule', details: errorMessage }, { status: 500 });
   }
 }

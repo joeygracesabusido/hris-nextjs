@@ -152,11 +152,12 @@ export async function POST(request: Request) {
     }
 
     return NextResponse.json(overtimeRequest, { status: 201 });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Error creating overtime request:', error);
-    return NextResponse.json({ 
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    return NextResponse.json({
       error: 'Failed to create overtime request',
-      details: error.message 
+      details: errorMessage
     }, { status: 500 });
   }
 }

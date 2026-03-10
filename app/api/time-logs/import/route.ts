@@ -20,7 +20,7 @@ export async function POST(request: Request) {
     const workbook = XLSX.read(buffer, { type: 'buffer', cellDates: true });
     const sheetName = workbook.SheetNames[0];
     const worksheet = workbook.Sheets[sheetName];
-    const data = XLSX.utils.sheet_to_json(worksheet) as Record<string, any>[];
+    const data = XLSX.utils.sheet_to_json(worksheet) as Record<string, unknown>[];
 
     if (!data || data.length === 0) {
       return NextResponse.json(
@@ -35,16 +35,16 @@ export async function POST(request: Request) {
       errors: [] as string[],
     };
 
-    const parseTime = (timeVal: any, baseDate: Date): Date | null => {
-      if (!timeVal) return null;
-      
+    const parseTime = (timeVal: unknown, baseDate: Date): Date | null => {
+      if (timeVal == null) return null;
+
       const res = new Date(baseDate);
-      
+
       if (timeVal instanceof Date) {
         res.setHours(timeVal.getHours(), timeVal.getMinutes(), 0, 0);
         return res;
       }
-      
+
       if (typeof timeVal === 'number') {
         // Excel time is a fraction of a day
         const totalMinutes = Math.round(timeVal * 24 * 60);
@@ -53,19 +53,19 @@ export async function POST(request: Request) {
         res.setHours(hours, minutes, 0, 0);
         return res;
       }
-      
+
       if (typeof timeVal === 'string') {
         const parts = timeVal.split(':');
         if (parts.length >= 2) {
-          const hours = parseInt(parts[0]);
-          const minutes = parseInt(parts[1]);
+          const hours = parseInt(parts[0], 10);
+          const minutes = parseInt(parts[1], 10);
           if (!isNaN(hours) && !isNaN(minutes)) {
             res.setHours(hours, minutes, 0, 0);
             return res;
           }
         }
       }
-      
+
       return null;
     };
 

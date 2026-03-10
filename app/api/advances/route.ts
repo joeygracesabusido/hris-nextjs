@@ -8,7 +8,7 @@ const localPrisma = new PrismaClient();
 const ADVANCES_CACHE_PREFIX = 'advances:';
 
 // Helper to get the model safely
-function getAdvanceModel(p: any) {
+function getAdvanceModel(p: unknown) {
   return p.advance || p.Advance || p.advances;
 }
 
@@ -43,7 +43,7 @@ export async function GET(request: Request) {
       console.error('Redis GET error:', err);
     }
 
-    const where: any = {};
+    const where: Record<string, string> = {};
     if (employeeId) where.employeeId = employeeId;
 
     const advances = await advanceModel.findMany({
@@ -59,9 +59,10 @@ export async function GET(request: Request) {
     }
 
     return NextResponse.json(advances);
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Error fetching advances:', error);
-    return NextResponse.json({ error: 'Failed to fetch advances', details: error.message }, { status: 500 });
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    return NextResponse.json({ error: 'Failed to fetch advances', details: errorMessage }, { status: 500 });
   }
 }
 
@@ -105,11 +106,12 @@ export async function POST(request: Request) {
     }
 
     return NextResponse.json(advance, { status: 201 });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Error creating advance:', error);
-    return NextResponse.json({ 
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    return NextResponse.json({
       error: 'Failed to create advance',
-      details: error.message 
+      details: errorMessage
     }, { status: 500 });
   }
 }
