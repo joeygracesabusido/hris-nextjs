@@ -47,7 +47,7 @@ export const cache = {
     }
   },
 
-  set: async (key: string, value: any, ttlSeconds: number = 3600): Promise<void> => {
+  set: async (key: string, value: unknown, ttlSeconds: number = 3600): Promise<void> => {
     if (!redis) return;
     try {
       await redis.set(key, JSON.stringify(value), 'EX', ttlSeconds);

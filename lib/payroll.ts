@@ -5,7 +5,8 @@
  * Philippine labor laws and statutory contribution rates (as of 2026).
  */
 
-import { startOfDay, endOfDay } from 'date-fns';
+// Date utilities from date-fns (currently unused but kept for future use)
+// import { startOfDay, endOfDay } from 'date-fns';
 
 // ============================================================================
 // SSS CONTRIBUTION CALCULATIONS (2026)
@@ -120,8 +121,8 @@ export function calculatePagIBIG(monthlySalary: number): {
 } {
   if (monthlySalary < 0) throw new Error('Monthly salary cannot be negative')
   const baseSalary = Math.min(10000, monthlySalary)
-  let employeeRate = monthlySalary <= 1500 ? 0.01 : 0.02
-  let employerRate = 0.02
+  const employeeRate = monthlySalary <= 1500 ? 0.01 : 0.02
+  const employerRate = 0.02
   const employeeShare = Math.min(200, Math.round(baseSalary * employeeRate * 100) / 100)
   const employerShare = Math.min(200, Math.round(baseSalary * employerRate * 100) / 100)
   const total = Math.round((employeeShare + employerShare) * 100) / 100
