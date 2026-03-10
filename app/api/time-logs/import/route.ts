@@ -94,7 +94,7 @@ export async function POST(request: Request) {
           // Handle Excel numeric date
           dateObj = new Date((row.date - 25569) * 86400 * 1000);
         } else {
-          dateObj = new Date(row.date);
+          dateObj = new Date(String(row.date));
         }
 
         if (isNaN(dateObj.getTime())) {
@@ -140,7 +140,7 @@ export async function POST(request: Request) {
               clockOut: clockOutTime || existingLog.clockOut,
               workHours: workHours || existingLog.workHours,
               otHours: otHours || existingLog.otHours,
-              notes: row.notes || existingLog.notes,
+              notes: (row.notes as string) || existingLog.notes,
               isEdited: true,
             },
           });
@@ -153,7 +153,7 @@ export async function POST(request: Request) {
               clockOut: clockOutTime,
               workHours,
               otHours,
-              notes: row.notes || '',
+              notes: (row.notes as string) || '',
             },
           });
         }

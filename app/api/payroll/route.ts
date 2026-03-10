@@ -5,7 +5,8 @@ import {
   calculatePhilHealth, 
   calculatePagIBIG, 
   calculateWithholdingTax,
-  calculateHourlyRate as libCalculateHourlyRate 
+  calculateDailyRate,
+  calculateHourlyRate
 } from '@/lib/payroll';
 import { cache } from '@/lib/redis';
 
@@ -16,15 +17,6 @@ function calculateSemiMonthlySalary(monthlySalary: number, frequency: string): n
     return monthlySalary / 2;
   }
   return monthlySalary;
-}
-
-// Fixed to 26 days as per user requirement
-function calculateDailyRate(monthlySalary: number): number {
-  return monthlySalary / 26;
-}
-
-function calculateHourlyRate(monthlySalary: number): number {
-  return calculateDailyRate(monthlySalary) / 8;
 }
 
 function countWorkingDays(start: Date, end: Date): number {

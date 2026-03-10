@@ -144,14 +144,37 @@ const TAX_TABLE_2026 = {
   ]
 };
 
-export function calculateWithholdingTax(taxableIncome: number): number {
+export function calculateDailyRate(monthlySalary: number): number {
+  return monthlySalary / 26;
+}
+
+export function calculateHourlyRate(monthlySalary: number): number {
+  return calculateDailyRate(monthlySalary) / 8;
+}
+
+export function calculateWithholdingTax(taxableIncome: number, frequency: string = 'MONTHLY'): number {
   if (taxableIncome < 0) return 0;
+  
+  // For now, we only have MONTHLY table. If SEMIMONTHLY, we should theoretically use a different table
+  // or adjust the income. BIR usually has tables for Daily, Weekly, Semi-Monthly, Monthly.
+  // For simplicity, if Semi-monthly, we could double it to find the bracket, then divide the tax.
+  
+  let adjustedIncome = taxableIncome;
+  let factor = 1;
+  
+  if (frequency === 'SEMIMONTHLY') {
+    adjustedIncome = taxableIncome * 2;
+    factor = 0.5;
+  }
+
   const table = TAX_TABLE_2026.MONTHLY;
-  const bracket = table.find(b => taxableIncome >= b.min && taxableIncome <= b.max) || table[table.length - 1];
+  const bracket = table.find(b => adjustedIncome >= b.min && adjustedIncome <= b.max) || table[table.length - 1];
   if (!bracket || bracket.percentage === 0) return 0;
-  const excess = taxableIncome - bracket.threshold;
+  
+  const excess = adjustedIncome - bracket.threshold;
   const tax = bracket.baseTax + (excess * bracket.percentage / 100);
-  return Math.round(tax * 100) / 100;
+  
+  return Math.round(tax * factor * 100) / 100;
 }
 
 // ============================================================================
@@ -230,7 +253,7 @@ export function computePayslip(
   } else {
     // MONTHLY FIXED Calculation
     baseAmount = employee.basicSalary
-    hourlyRate = employee.basicSalary / 26 / 8 // Assuming 26 standard working days
+    hourlyRate = calculateHourlyRate(employee.basicSalary)
   }
 
   const otPay = Math.round((hourlyRate * totalOtHours * 1.25) * 100) / 100
