@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { Clock, Play, Square, Calendar, User, Upload, Download, FileSpreadsheet, LogOut, Search } from 'lucide-react';
+import { Clock, Play, Square, Calendar, User, Upload, Download, FileSpreadsheet, LogOut, Search, AlertCircle, CheckCircle2 } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -14,12 +14,20 @@ import {
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
+import { Badge } from '@/components/ui/badge';
 
 interface Employee {
   id: string;
   employeeNumber: number;
   fullName: string;
   employeeId: string;
+}
+
+interface Shift {
+  id: string;
+  name: string;
+  startTime: string;
+  endTime: string;
 }
 
 interface TimeLog {
@@ -29,6 +37,7 @@ interface TimeLog {
   clockIn: string | null;
   clockOut: string | null;
   workHours: number;
+  shift: Shift | null;
   employee: {
     fullName: string;
     employeeId: string;
@@ -78,6 +87,18 @@ export default function TimeLogsPage() {
     fetchTimeLogs();
   }, []);
 
+  useEffect(() => {
+    if (timeLogs.length > 0 && employeeId) {
+      const today = new Date().toISOString().split('T')[0];
+      const todayEntry = timeLogs.find((log: TimeLog) => 
+        log.date.startsWith(today) && log.employeeId === employeeId
+      );
+      setTodayLog(todayEntry || null);
+    } else {
+      setTodayLog(null);
+    }
+  }, [timeLogs, employeeId]);
+
   const fetchTimeLogs = async () => {
     try {
       const res = await fetch('/api/time-logs');
@@ -88,12 +109,6 @@ export default function TimeLogsPage() {
       }
       const data = await res.json();
       setTimeLogs(Array.isArray(data) ? data : []);
-      
-      const today = new Date().toISOString().split('T')[0];
-      const todayEntry = data.find((log: TimeLog) => log.date.startsWith(today));
-      if (todayEntry) {
-        setTodayLog(todayEntry);
-      }
     } catch (err) {
       console.error('Failed to fetch time logs:', err);
     } finally {
@@ -189,6 +204,42 @@ export default function TimeLogsPage() {
       month: 'short',
       day: 'numeric'
     });
+  };
+
+  const getLatenessRemarks = (log: TimeLog) => {
+    if (!log.clockIn || !log.shift || log.shift.startTime === '-') {
+      return { label: 'Regular', color: 'bg-gray-100 text-gray-600', icon: null };
+    }
+
+    try {
+      const clockInDate = new Date(log.clockIn);
+      const [shiftHour, shiftMinute] = log.shift.startTime.split(':').map(Number);
+      
+      const scheduledStartTime = new Date(clockInDate);
+      scheduledStartTime.setHours(shiftHour, shiftMinute, 0, 0);
+
+      // If clock in is more than 1 minute after scheduled time, it's late
+      const diffInMinutes = (clockInDate.getTime() - scheduledStartTime.getTime()) / (1000 * 60);
+      
+      if (diffInMinutes > 1) {
+        const hours = Math.floor(diffInMinutes / 60);
+        const mins = Math.floor(diffInMinutes % 60);
+        const timeStr = hours > 0 ? `${hours}h ${mins}m` : `${mins}m`;
+        return { 
+          label: `Late (${timeStr})`, 
+          color: 'bg-red-100 text-red-700 border-red-200', 
+          icon: <AlertCircle className="w-3 h-3 mr-1" /> 
+        };
+      }
+
+      return { 
+        label: 'On Time', 
+        color: 'bg-green-100 text-green-700 border-green-200', 
+        icon: <CheckCircle2 className="w-3 h-3 mr-1" /> 
+      };
+    } catch (e) {
+      return { label: 'Regular', color: 'bg-gray-100 text-gray-600', icon: null };
+    }
   };
 
   const canClockIn = !todayLog || !todayLog.clockIn;
@@ -520,44 +571,67 @@ export default function TimeLogsPage() {
           ).length === 0 ? (
             <div className="p-8 text-center text-gray-500">No time logs found</div>
           ) : (
-            <table className="w-full">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Employee</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Clock In</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Clock Out</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Hours</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-200">
-                {timeLogs
-                  .filter(log => 
-                    log.employee?.fullName?.toLowerCase().includes(searchTerm.toLowerCase())
-                  )
-                  .map((log) => (
-                    <tr key={log.id} className="hover:bg-gray-50">
-                      <td className="px-6 py-4 text-sm">{formatDate(log.date)}</td>
-                      <td className="px-6 py-4">
-                        <div className="flex items-center gap-2">
-                          <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
-                            <span className="text-blue-600 text-xs font-medium">
-                              {log.employee?.fullName?.[0] || 'E'}
-                            </span>
-                          </div>
-                          <div>
-                            <p className="text-sm font-medium">{log.employee?.fullName || 'Unknown'}</p>
-                            <p className="text-xs text-gray-500">{log.employee?.employeeId}</p>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 text-sm">{formatTime(log.clockIn)}</td>
-                      <td className="px-6 py-4 text-sm">{formatTime(log.clockOut)}</td>
-                      <td className="px-6 py-4 text-sm">{log.workHours.toFixed(2)}</td>
-                    </tr>
-                  ))}
-              </tbody>
-            </table>
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Employee</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Schedule</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Clock In</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Clock Out</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Hours</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Remarks</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-200">
+                  {timeLogs
+                    .filter(log => 
+                      log.employee?.fullName?.toLowerCase().includes(searchTerm.toLowerCase())
+                    )
+                    .map((log) => {
+                      const remarks = getLatenessRemarks(log);
+                      return (
+                        <tr key={log.id} className="hover:bg-gray-50">
+                          <td className="px-6 py-4 text-sm whitespace-nowrap">{formatDate(log.date)}</td>
+                          <td className="px-6 py-4">
+                            <div className="flex items-center gap-2">
+                              <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
+                                <span className="text-blue-600 text-xs font-medium">
+                                  {log.employee?.fullName?.[0] || 'E'}
+                                </span>
+                              </div>
+                              <div>
+                                <p className="text-sm font-medium">{log.employee?.fullName || 'Unknown'}</p>
+                                <p className="text-xs text-gray-500">{log.employee?.employeeId}</p>
+                              </div>
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 text-sm whitespace-nowrap">
+                            {log.shift ? (
+                              <div className="flex flex-col">
+                                <span className="font-medium text-blue-600 text-xs">{log.shift.name}</span>
+                                <span className="text-xs text-gray-500">{log.shift.startTime} - {log.shift.endTime}</span>
+                              </div>
+                            ) : (
+                              <span className="text-gray-400 text-xs italic">No Schedule</span>
+                            )}
+                          </td>
+                          <td className="px-6 py-4 text-sm">{formatTime(log.clockIn)}</td>
+                          <td className="px-6 py-4 text-sm">{formatTime(log.clockOut)}</td>
+                          <td className="px-6 py-4 text-sm">{log.workHours.toFixed(2)}</td>
+                          <td className="px-6 py-4 text-sm whitespace-nowrap">
+                            <Badge variant="outline" className={`${remarks.color} border flex items-center w-fit`}>
+                              {remarks.icon}
+                              {remarks.label}
+                            </Badge>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                </tbody>
+              </table>
+            </div>
           )}
         </div>
       )}

@@ -1,16 +1,28 @@
 import { PrismaClient } from "@prisma/client";
 
-// Last updated: 2026-03-09T03:30:00.000Z
+// Singleton pattern for Prisma Client with health check for new models
 const prismaClientSingleton = () => {
   return new PrismaClient()
 }
 
 declare const globalThis: {
-  prismaGlobal: ReturnType<typeof prismaClientSingleton>;
+  prismaGlobal: PrismaClient | undefined;
 } & typeof global;
 
-const prisma = globalThis.prismaGlobal ?? prismaClientSingleton()
+// Standard singleton pattern for Prisma Client to prevent multiple instances in development
+const getPrisma = () => {
+  if (process.env.NODE_ENV === "production") {
+    return prismaClientSingleton();
+  }
+  
+  if (!globalThis.prismaGlobal) {
+    console.log('[Prisma] Creating fresh instance');
+    globalThis.prismaGlobal = prismaClientSingleton();
+  }
+  
+  return globalThis.prismaGlobal;
+}
+
+const prisma = getPrisma();
 
 export default prisma;
-
-if (process.env.NODE_ENV !== "production") globalThis.prismaGlobal = prisma

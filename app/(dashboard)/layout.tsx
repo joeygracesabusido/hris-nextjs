@@ -9,6 +9,7 @@ const navItems = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/users', label: 'Users', icon: UserCheck },
   { href: '/employees', label: 'Employees', icon: Users },
+  { href: '/schedules', label: 'Shift Schedule', icon: CalendarDays },
   { href: '/leaves', label: 'Leaves', icon: CalendarDays },
   { href: '/overtime', label: 'Overtime', icon: Timer },
   { href: '/payroll', label: 'Payroll', icon: DollarSign },

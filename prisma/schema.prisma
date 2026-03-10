@@ -55,6 +55,8 @@ model Employee {
   department    String
 
   basicSalary   Float
+  dailyRate     Float     @default(0)
+  payType       String    @default("MONTHLY") // MONTHLY or DAILY
   payrollFrequency String @default("MONTHLY")
 
   hireDate      DateTime
@@ -83,8 +85,44 @@ model Employee {
   overtimeRequests OvertimeRequest[] @relation("EmployeeOvertime")
   approvedOvertime OvertimeRequest[] @relation("ApproverOvertime")
   advances      Advance[]
+  shiftSchedules ShiftSchedule[]
 
   @@map("employees")
+  }
+
+  /// Shift model for defining working hours
+  model Shift {
+    id          String   @id @default(auto()) @map("_id") @db.ObjectId
+    name        String   @unique // e.g., AM_0800_1700, NIGHT_SHIFT
+    startTime   String   // e.g., "08:00"
+    endTime     String   // e.g., "17:00"
+    color       String?  // hex or tailwind class
+    isOff       Boolean  @default(false)
+    
+    schedules   ShiftSchedule[]
+    
+    createdAt   DateTime @default(now())
+    updatedAt   DateTime @updatedAt
+
+    @@map("shifts")
+  }
+
+  /// ShiftSchedule model for assigning shifts to employees on specific dates
+  model ShiftSchedule {
+    id          String   @id @default(auto()) @map("_id") @db.ObjectId
+    employeeId  String   @db.ObjectId
+    employee    Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+    
+    shiftId     String   @db.ObjectId
+    shift       Shift    @relation(fields: [shiftId], references: [id])
+    
+    date        DateTime
+    
+    createdAt   DateTime @default(now())
+    updatedAt   DateTime @updatedAt
+
+    @@unique([employeeId, date])
+    @@map("shiftschedules")
   }
 
   /// Advance model for employee loans (Cash Advance, SSS, Pag-IBIG)

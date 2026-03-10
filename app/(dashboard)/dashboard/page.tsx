@@ -1,27 +1,54 @@
-import { Users, DollarSign, Clock, TrendingUp } from 'lucide-react';
+'use client';
 
-const stats = [
-  { label: 'Total Employees', value: '124', icon: Users, color: 'bg-blue-500' },
-  { label: 'Monthly Payroll', value: '₱458,320', icon: DollarSign, color: 'bg-green-500' },
-  { label: 'Total Hours Today', value: '892', icon: Clock, color: 'bg-orange-500' },
-  { label: 'Overtime Hours', value: '45', icon: TrendingUp, color: 'bg-purple-500' },
-];
+import { useState, useEffect } from 'react';
+import { Users, DollarSign, Clock, TrendingUp, UserMinus } from 'lucide-react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 
-const recentEmployees = [
-  { name: 'Juan dela Cruz', position: 'Software Engineer', department: 'IT', hireDate: 'Feb 25, 2026' },
-  { name: 'Maria Santos', position: 'Marketing Manager', department: 'Marketing', hireDate: 'Feb 24, 2026' },
-  { name: 'Pedro Garcia', position: 'Accountant', department: 'Finance', hireDate: 'Feb 20, 2026' },
-  { name: 'Ana Reyes', position: 'HR Specialist', department: 'HR', hireDate: 'Feb 18, 2026' },
-];
-
-const recentPayroll = [
-  { employee: 'Juan dela Cruz', amount: '₱45,000', status: 'Processed' },
-  { employee: 'Maria Santos', amount: '₱52,000', status: 'Processed' },
-  { employee: 'Pedro Garcia', amount: '₱38,500', status: 'Pending' },
-  { employee: 'Ana Reyes', amount: '₱42,000', status: 'Processed' },
-];
+interface Stats {
+  totalEmployees: number;
+  presentToday: number;
+  onLeaveToday: number;
+  absentPerDepartment: {
+    name: string;
+    absent: number;
+    total: number;
+  }[];
+}
 
 export default function DashboardPage() {
+  const [stats, setStats] = useState<Stats | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function fetchStats() {
+      try {
+        const response = await fetch('/api/dashboard/stats');
+        const data = await response.json();
+        setStats(data);
+      } catch (error) {
+        console.error('Error fetching stats:', error);
+      } finally {
+        setLoading(false);
+      }
+    }
+    fetchStats();
+  }, []);
+
+  const summaryStats = [
+    { label: 'Total Employees', value: stats?.totalEmployees.toString() || '0', icon: Users, color: 'bg-blue-500' },
+    { label: 'Present Today', value: stats?.presentToday.toString() || '0', icon: Clock, color: 'bg-green-500' },
+    { label: 'On Leave Today', value: stats?.onLeaveToday.toString() || '0', icon: UserMinus, color: 'bg-orange-500' },
+    { label: 'Total Absents', value: (stats?.totalEmployees || 0) - (stats?.presentToday || 0) + '', icon: TrendingUp, color: 'bg-purple-500' },
+  ];
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       <div>
@@ -31,7 +58,7 @@ export default function DashboardPage() {
 
       {/* Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        {stats.map((stat) => {
+        {summaryStats.map((stat) => {
           const Icon = stat.icon;
           return (
             <div key={stat.label} className="bg-white rounded-xl p-6 shadow-sm border">
@@ -49,74 +76,78 @@ export default function DashboardPage() {
         })}
       </div>
 
-      {/* Tables Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Recent Employees */}
-        <div className="bg-white rounded-xl shadow-sm border">
-          <div className="p-6 border-b">
-            <h2 className="text-lg font-semibold">Recent Employees</h2>
-          </div>
-          <div className="p-6">
-            <table className="w-full">
-              <thead>
-                <tr className="text-left text-sm text-gray-500">
-                  <th className="pb-3">Name</th>
-                  <th className="pb-3">Department</th>
-                  <th className="pb-3">Hire Date</th>
-                </tr>
-              </thead>
-              <tbody>
-                {recentEmployees.map((emp) => (
-                  <tr key={emp.name} className="border-t">
-                    <td className="py-3">
-                      <div>
-                        <p className="font-medium">{emp.name}</p>
-                        <p className="text-sm text-gray-500">{emp.position}</p>
-                      </div>
-                    </td>
-                    <td className="py-3 text-gray-600">{emp.department}</td>
-                    <td className="py-3 text-gray-600">{emp.hireDate}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
+        {/* Absent per Department */}
+        <Card className="shadow-sm border">
+          <CardHeader className="p-6 border-b">
+            <CardTitle className="text-lg font-semibold flex items-center gap-2">
+              <UserMinus className="w-5 h-5 text-red-500" />
+              Employee Absent per Department
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-6">
+            <div className="space-y-4">
+              {stats?.absentPerDepartment.map((dept) => (
+                <div key={dept.name} className="flex flex-col gap-1">
+                  <div className="flex justify-between items-center text-sm">
+                    <span className="font-medium text-gray-700">{dept.name}</span>
+                    <span className="text-gray-500">
+                      {dept.absent} / {dept.total} absent
+                    </span>
+                  </div>
+                  <div className="w-full bg-gray-100 rounded-full h-2.5 overflow-hidden">
+                    <div 
+                      className={`h-full transition-all duration-500 ${
+                        (dept.absent / dept.total) > 0.5 ? 'bg-red-500' : 
+                        (dept.absent / dept.total) > 0.2 ? 'bg-yellow-500' : 'bg-green-500'
+                      }`}
+                      style={{ width: `${(dept.absent / dept.total) * 100}%` }}
+                    />
+                  </div>
+                </div>
+              ))}
+              {stats?.absentPerDepartment.length === 0 && (
+                <p className="text-center text-gray-500 py-4">No department data available.</p>
+              )}
+            </div>
+          </CardContent>
+        </Card>
 
-        {/* Recent Payroll */}
-        <div className="bg-white rounded-xl shadow-sm border">
-          <div className="p-6 border-b">
-            <h2 className="text-lg font-semibold">Recent Payroll</h2>
-          </div>
-          <div className="p-6">
-            <table className="w-full">
-              <thead>
-                <tr className="text-left text-sm text-gray-500">
-                  <th className="pb-3">Employee</th>
-                  <th className="pb-3">Amount</th>
-                  <th className="pb-3">Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {recentPayroll.map((pay) => (
-                  <tr key={pay.employee} className="border-t">
-                    <td className="py-3 font-medium">{pay.employee}</td>
-                    <td className="py-3">{pay.amount}</td>
-                    <td className="py-3">
-                      <span className={`px-2 py-1 rounded-full text-xs ${
-                        pay.status === 'Processed' 
-                          ? 'bg-green-100 text-green-700' 
-                          : 'bg-yellow-100 text-yellow-700'
-                      }`}>
-                        {pay.status}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
+        {/* Legend / Breakdown */}
+        <Card className="shadow-sm border">
+          <CardHeader className="p-6 border-b">
+            <CardTitle className="text-lg font-semibold">Attendance Overview</CardTitle>
+          </CardHeader>
+          <CardContent className="p-6">
+             <div className="flex flex-col gap-6">
+               <div className="flex items-center justify-between p-4 bg-green-50 border border-green-100 rounded-lg">
+                 <div className="flex items-center gap-3">
+                   <div className="w-3 h-3 rounded-full bg-green-500" />
+                   <span className="text-sm font-medium text-green-900">Present</span>
+                 </div>
+                 <span className="text-xl font-bold text-green-900">{stats?.presentToday}</span>
+               </div>
+               
+               <div className="flex items-center justify-between p-4 bg-orange-50 border border-orange-100 rounded-lg">
+                 <div className="flex items-center gap-3">
+                   <div className="w-3 h-3 rounded-full bg-orange-500" />
+                   <span className="text-sm font-medium text-orange-900">On Leave (Approved)</span>
+                 </div>
+                 <span className="text-xl font-bold text-orange-900">{stats?.onLeaveToday}</span>
+               </div>
+
+               <div className="flex items-center justify-between p-4 bg-red-50 border border-red-100 rounded-lg">
+                 <div className="flex items-center gap-3">
+                   <div className="w-3 h-3 rounded-full bg-red-500" />
+                   <span className="text-sm font-medium text-red-900">Unaccounted (No log)</span>
+                 </div>
+                 <span className="text-xl font-bold text-red-900">
+                   {Math.max(0, (stats?.totalEmployees || 0) - (stats?.presentToday || 0) - (stats?.onLeaveToday || 0))}
+                 </span>
+               </div>
+             </div>
+          </CardContent>
+        </Card>
       </div>
     </div>
   );

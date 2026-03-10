@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
+import { startOfDay, endOfDay } from 'date-fns';
 
 export async function GET(request: Request) {
   try {
@@ -20,16 +21,31 @@ export async function GET(request: Request) {
     });
     const employeeMap = new Map(employees.map(emp => [emp.id, emp]));
 
-    const formattedLogs = timeLogs.map(log => {
+    const formattedLogs = await Promise.all(timeLogs.map(async (log) => {
       const emp = employeeMap.get(log.employeeId);
+      
+      const schedule = await prisma.shiftSchedule.findFirst({
+        where: {
+          employeeId: log.employeeId,
+          date: {
+            gte: startOfDay(new Date(log.date)),
+            lte: endOfDay(new Date(log.date)),
+          }
+        },
+        include: {
+          shift: true
+        }
+      });
+
       return {
         ...log,
+        shift: schedule?.shift || null,
         employee: emp ? {
           fullName: emp.fullName,
           employeeId: emp.employeeId,
         } : { fullName: 'Unknown', employeeId: 'N/A' },
       };
-    });
+    }));
 
     return NextResponse.json(formattedLogs);
   } catch (error) {
@@ -47,102 +63,89 @@ export async function POST(request: Request) {
     const { employeeId, type } = body;
 
     if (!employeeId || !type) {
-      return NextResponse.json(
-        { error: 'Employee ID and type are required' },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: 'Employee ID and type are required' }, { status: 400 });
     }
 
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const tomorrow = new Date(today);
-    tomorrow.setDate(tomorrow.getDate() + 1);
+    const now = new Date();
+    const todayStart = startOfDay(now);
+    const todayEnd = endOfDay(now);
 
     const existingLog = await prisma.timeLog.findFirst({
       where: {
         employeeId,
-        date: {
-          gte: today,
-          lt: tomorrow,
-        },
+        date: { gte: todayStart, lte: todayEnd },
       },
     });
 
     if (type === 'clockIn') {
       if (existingLog && existingLog.clockIn) {
-        return NextResponse.json(
-          { error: 'You have already clocked in today' },
-          { status: 400 }
-        );
+        return NextResponse.json({ error: 'You have already clocked in today' }, { status: 400 });
+      }
+
+      // Calculate lateness if a shift is assigned
+      let lateMinutes = 0;
+      const schedule = await prisma.shiftSchedule.findFirst({
+        where: {
+          employeeId,
+          date: { gte: todayStart, lte: todayEnd },
+        },
+        include: { shift: true }
+      });
+
+      if (schedule?.shift && !schedule.shift.isOff && schedule.shift.startTime !== '-') {
+        const [sHour, sMin] = schedule.shift.startTime.split(':').map(Number);
+        const scheduledTime = new Date(now);
+        scheduledTime.setHours(sHour, sMin, 0, 0);
+        
+        const diffMs = now.getTime() - scheduledTime.getTime();
+        if (diffMs > 60000) { // More than 1 minute late
+          lateMinutes = Math.floor(diffMs / 60000);
+        }
       }
 
       if (existingLog) {
         await prisma.timeLog.update({
           where: { id: existingLog.id },
-          data: { clockIn: new Date() },
+          data: { clockIn: now, lateMinutes },
         });
-        return NextResponse.json(
-          { message: 'Clock in recorded successfully' },
-          { status: 200 }
-        );
+      } else {
+        await prisma.timeLog.create({
+          data: {
+            employeeId,
+            date: now,
+            clockIn: now,
+            lateMinutes,
+          },
+        });
       }
-
-      await prisma.timeLog.create({
-        data: {
-          employeeId,
-          date: new Date(),
-          clockIn: new Date(),
-        },
-      });
-
-      return NextResponse.json(
-        { message: 'Clock in recorded successfully' },
-        { status: 201 }
-      );
+      return NextResponse.json({ message: 'Clock in recorded successfully' });
     }
 
     if (type === 'clockOut') {
       if (!existingLog) {
-        return NextResponse.json(
-          { error: 'You have not clocked in today' },
-          { status: 400 }
-        );
+        return NextResponse.json({ error: 'You have not clocked in today' }, { status: 400 });
       }
-
       if (existingLog.clockOut) {
-        return NextResponse.json(
-          { error: 'You have already clocked out today' },
-          { status: 400 }
-        );
+        return NextResponse.json({ error: 'You have already clocked out today' }, { status: 400 });
       }
 
-      const clockInTime = existingLog.clockIn ? new Date(existingLog.clockIn) : new Date();
-      const clockOutTime = new Date();
-      const hoursWorked = (clockOutTime.getTime() - clockInTime.getTime()) / (1000 * 60 * 60);
+      const clockInTime = new Date(existingLog.clockIn!);
+      const hoursWorked = (now.getTime() - clockInTime.getTime()) / (1000 * 60 * 60);
 
       await prisma.timeLog.update({
         where: { id: existingLog.id },
         data: {
-          clockOut: clockOutTime,
+          clockOut: now,
           workHours: Math.round(hoursWorked * 100) / 100,
         },
       });
 
-      return NextResponse.json(
-        { message: 'Clock out recorded successfully' },
-        { status: 200 }
-      );
+      return NextResponse.json({ message: 'Clock out recorded successfully' });
     }
 
-    return NextResponse.json(
-      { error: 'Invalid type' },
-      { status: 400 }
-    );
+    return NextResponse.json({ error: 'Invalid type' }, { status: 400 });
   } catch (error) {
     console.error('Error recording time log:', error);
-    return NextResponse.json(
-      { error: 'Failed to record time log' },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: 'Failed to record time log' }, { status: 500 });
   }
 }
