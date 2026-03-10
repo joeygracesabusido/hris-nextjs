@@ -8,7 +8,7 @@ const localPrisma = new PrismaClient();
 const ADVANCES_CACHE_PREFIX = 'advances:';
 
 // Helper to get the model safely
-function getAdvanceModel(p: unknown) {
+function getAdvanceModel(p: PrismaClient) {
   return p.advance || p.Advance || p.advances;
 }
 
