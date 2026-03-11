@@ -14,6 +14,14 @@ function getAdvanceModel(p: PrismaClient) {
 
 export async function GET(request: Request) {
   try {
+    const cookieStore = await cookies();
+    const userRole = cookieStore.get('userRole')?.value;
+    const userEmail = cookieStore.get('userEmail')?.value;
+
+    if (!userEmail) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     const { searchParams } = new URL(request.url);
     const employeeId = searchParams.get('employeeId');
     const advanceId = searchParams.get('id');
@@ -35,16 +43,30 @@ export async function GET(request: Request) {
       return NextResponse.json(advance);
     }
 
-    const cacheKey = `${ADVANCES_CACHE_PREFIX}${employeeId || 'all'}`;
+    // If not admin, filter to only show the logged-in employee's advances
+    const where: Record<string, string> = {};
+    if (userRole !== 'ADMIN') {
+      const user = await localPrisma.user.findUnique({
+        where: { email: userEmail },
+        include: { employees: true },
+      });
+
+      if (!user || !user.employees || user.employees.length === 0) {
+        return NextResponse.json({ error: 'Employee record not found' }, { status: 404 });
+      }
+
+      where.employeeId = user.employees[0].id;
+    } else if (employeeId) {
+      where.employeeId = employeeId;
+    }
+
+    const cacheKey = `${ADVANCES_CACHE_PREFIX}${userRole}:${userEmail}`;
     try {
       const cachedData = await cache.get(cacheKey);
       if (cachedData) return NextResponse.json(cachedData);
     } catch (err) {
       console.error('Redis GET error:', err);
     }
-
-    const where: Record<string, string> = {};
-    if (employeeId) where.employeeId = employeeId;
 
     const advances = await advanceModel.findMany({
       where,

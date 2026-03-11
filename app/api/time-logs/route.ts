@@ -1,13 +1,38 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { startOfDay, endOfDay } from 'date-fns';
+import { cookies } from 'next/headers';
 
 export async function GET(request: Request) {
   try {
-    const { searchParams } = new URL(request.url);
-    const employeeId = searchParams.get('employeeId');
+    const cookieStore = await cookies();
+    const userRole = cookieStore.get('userRole')?.value;
+    const userEmail = cookieStore.get('userEmail')?.value;
 
-    const where = employeeId ? { employeeId } : {};
+    if (!userEmail) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const { searchParams } = new URL(request.url);
+    const employeeIdParam = searchParams.get('employeeId');
+
+    const where: Record<string, unknown> = {};
+
+    // If not admin, filter to only show the logged-in employee's data
+    if (userRole !== 'ADMIN' && userRole !== 'MANAGER') {
+      const user = await prisma.user.findUnique({
+        where: { email: userEmail },
+        include: { employees: true },
+      });
+
+      if (!user || !user.employees || user.employees.length === 0) {
+        return NextResponse.json({ error: 'Employee record not found' }, { status: 404 });
+      }
+
+      where.employeeId = user.employees[0].id;
+    } else if (employeeIdParam) {
+      where.employeeId = employeeIdParam;
+    }
 
     const timeLogs = await prisma.timeLog.findMany({
       where,

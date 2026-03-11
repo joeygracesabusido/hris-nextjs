@@ -26,6 +26,7 @@ export default function DashboardLayout({
   const pathname = usePathname();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
+  const [userRole, setUserRole] = useState('');
 
   useEffect(() => {
     setMounted(true);
@@ -37,7 +38,15 @@ export default function DashboardLayout({
     if (cookies.isLoggedIn !== 'true') {
       window.location.href = '/login';
     }
+    setUserRole(cookies.userRole || '');
   }, []);
+
+  const filteredNavItems = navItems.filter((item) => {
+    if (userRole === 'EMPLOYEE') {
+      return !['/users', '/employees', '/reports'].includes(item.href);
+    }
+    return true;
+  });
 
   if (!mounted) return null;
 
@@ -67,7 +76,7 @@ export default function DashboardLayout({
         </div>
         
         <nav className="px-3">
-          {navItems.map((item) => {
+          {filteredNavItems.map((item) => {
             const Icon = item.icon;
             const isActive = pathname === item.href;
             return (

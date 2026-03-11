@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Calculator, DollarSign, Clock, CheckCircle, FileText, Download, Printer, ChevronDown, ChevronUp } from 'lucide-react';
+import { Calculator, DollarSign, Clock, CheckCircle, FileText, Download, Printer, ChevronDown, ChevronUp, Trash2 } from 'lucide-react';
 
 interface Employee {
   id: string;
@@ -11,6 +11,7 @@ interface Employee {
   position: string;
   basicSalary: number;
   payrollFrequency: string;
+  email?: string;
 }
 
 interface PayrollRecord {
@@ -99,6 +100,8 @@ export default function PayrollPage() {
     deductions: ['sss', 'philhealth', 'pagibig', 'tax', 'cash_advance', 'sss_loan', 'pagibig_loan'],
   });
   const [userRole, setUserRole] = useState<string>('');
+  const [userEmployeeId, setUserEmployeeId] = useState<string>('');
+  const [userEmail, setUserEmail] = useState<string>('');
 
   const toggleDeduction = (deduction: string) => {
     setFormData(prev => {
@@ -116,13 +119,18 @@ export default function PayrollPage() {
 
   const isAllEmployees = formData.employeeId === 'all';
 
-  const filteredPayrollRecords = payrollRecords.filter((record) =>
-    record.employee.fullName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    record.employee.position?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    record.employee.department?.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const filteredPayrollRecords = payrollRecords.filter((record) => {
+    if (userRole === 'EMPLOYEE' && userEmployeeId) {
+      return record.employeeId === userEmployeeId;
+    }
+    return (
+      record.employee.fullName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      record.employee.position?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      record.employee.department?.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+  });
 
-  const fetchEmployees = async () => {
+  const fetchEmployees = async (userEmail: string) => {
     try {
       const res = await fetch('/api/employees', { credentials: 'include' });
       
@@ -143,6 +151,10 @@ export default function PayrollPage() {
       console.log('Employees response:', data);
       if (Array.isArray(data)) {
         setEmployees(data);
+        const currentUserEmployee = data.find((emp: Employee) => emp.email === userEmail);
+        if (currentUserEmployee) {
+          setUserEmployeeId(currentUserEmployee.id);
+        }
       } else if (data.error) {
         console.error('Error fetching employees:', data.error);
       }
@@ -178,8 +190,11 @@ export default function PayrollPage() {
       window.location.href = '/login';
       return;
     }
-    setUserRole(cookies.userRole || '');
-    fetchEmployees();
+    const role = cookies.userRole || '';
+    const email = cookies.userEmail || '';
+    setUserRole(role);
+    setUserEmail(email);
+    fetchEmployees(email);
     fetchPayrollRecords();
   }, []);
 
@@ -264,6 +279,30 @@ export default function PayrollPage() {
     }).format(amount);
   };
 
+  const handleDeletePayroll = async (payrollId: string) => {
+    if (!confirm('Are you sure you want to delete this payroll record? This action cannot be undone.')) {
+      return;
+    }
+
+    try {
+      const res = await fetch(`/api/payroll?id=${payrollId}`, {
+        method: 'DELETE',
+        credentials: 'include',
+      });
+
+      if (!res.ok) {
+        const data = await res.json();
+        alert(data.error || 'Failed to delete payroll');
+        return;
+      }
+
+      fetchPayrollRecords();
+    } catch (err) {
+      console.error('Delete payroll error:', err);
+      alert('Failed to delete payroll');
+    }
+  };
+
   const frequencies = [
     { value: 'WEEKLY', label: 'Weekly' },
     { value: 'SEMIMONTHLY', label: 'Semi-monthly' },
@@ -273,8 +312,10 @@ export default function PayrollPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">Payroll</h1>
-        <p className="text-gray-500">Compute employee payroll with Philippine labor law deductions</p>
+        <h1 className="text-2xl font-bold text-gray-900">{userRole === 'EMPLOYEE' ? 'My Payroll' : 'Payroll'}</h1>
+        <p className="text-gray-500">
+          {userRole === 'EMPLOYEE' ? 'View your payroll history and payslips' : 'Compute employee payroll with Philippine labor law deductions'}
+        </p>
       </div>
 
       {loading ? (
@@ -285,7 +326,9 @@ export default function PayrollPage() {
         <div className="bg-white rounded-xl shadow-sm border p-6">
           <p className="text-red-500">No employees found. Please add employees first.</p>
         </div>
-      ) : (
+      ) : null}
+
+      {!loading && employees.length > 0 && userRole !== 'EMPLOYEE' && (
         <div className="bg-white rounded-xl shadow-sm border p-6">
           <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
             <Calculator className="w-5 h-5" />
@@ -420,7 +463,7 @@ export default function PayrollPage() {
       </div>
       )}
 
-      {result && (
+      {result && userRole !== 'EMPLOYEE' && (
         <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
           <div className="p-6 border-b bg-gray-50">
             <div className="flex items-center justify-between">
@@ -548,8 +591,9 @@ export default function PayrollPage() {
           <div className="p-6 border-b flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <h2 className="text-lg font-semibold flex items-center gap-2">
               <FileText className="w-5 h-5" />
-              Payroll History
+              {userRole === 'EMPLOYEE' ? 'My Payroll History' : 'Payroll History'}
             </h2>
+            {userRole !== 'EMPLOYEE' && (
             <div className="relative">
               <input
                 type="text"
@@ -565,6 +609,7 @@ export default function PayrollPage() {
                 {searchQuery && '×'}
               </button>
             </div>
+            )}
           </div>
           {filteredPayrollRecords.length === 0 && searchQuery ? (
             <div className="p-6 text-center text-gray-500">
@@ -582,17 +627,22 @@ export default function PayrollPage() {
                   <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Deductions</th>
                   <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Net Pay</th>
                   <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Status</th>
-                  <th className="px-4 py-3"></th>
+                  <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Payslip</th>
+                  {userRole === 'ADMIN' && (
+                  <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Actions</th>
+                  )}
                 </tr>
               </thead>
               <tbody className="divide-y">
                 {filteredPayrollRecords.map((record) => (
                   <>
                     <tr key={record.id} className="hover:bg-gray-50">
+                      {userRole !== 'EMPLOYEE' && (
                       <td className="px-4 py-3">
                         <div className="font-medium text-gray-900">{record.employee.fullName}</div>
                         <div className="text-sm text-gray-500">{record.employee.position}</div>
                       </td>
+                      )}
                       <td className="px-4 py-3 text-sm text-gray-600">
                         {new Date(record.periodStart).toLocaleDateString()} - {new Date(record.periodEnd).toLocaleDateString()}
                       </td>
@@ -617,10 +667,21 @@ export default function PayrollPage() {
                           {expandedPayrollId === record.id ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
                         </button>
                       </td>
+                      <td className="px-4 py-3 text-center">
+                        {userRole === 'ADMIN' && (
+                          <button
+                            onClick={() => handleDeletePayroll(record.id)}
+                            className="p-1 hover:bg-red-50 text-red-600 rounded"
+                            title="Delete payroll record"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        )}
+                      </td>
                     </tr>
                     {expandedPayrollId === record.id && (
                       <tr>
-                        <td colSpan={8} className="bg-gray-50 px-4 py-4">
+                        <td colSpan={userRole === 'EMPLOYEE' ? 7 : 9} className="bg-gray-50 px-4 py-4">
                           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                             <div>
                               <h4 className="font-medium text-gray-900 mb-2">Earnings</h4>

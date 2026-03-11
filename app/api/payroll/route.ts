@@ -114,23 +114,44 @@ export async function POST(request: Request) {
           const totalLates = timeLogs.reduce((sum, log) => sum + (log.lateMinutes || 0), 0);
           const totalUndertime = timeLogs.reduce((sum, log) => sum + (log.undertimeMinutes || 0), 0);
 
-          const monthlySalary = employee.basicSalary;
-          const periodSalary = calculateSemiMonthlySalary(monthlySalary, frequency);
-          const dailyRate = calculateDailyRate(monthlySalary);
-          const hourlyRate = calculateHourlyRate(monthlySalary);
+          const monthlySalary = employee.payType === 'DAILY' 
+            ? (employee.dailyRate * 26) 
+            : employee.basicSalary;
+          const employeePayType = employee.payType || 'MONTHLY';
+          const employeeDailyRate = employee.dailyRate || calculateDailyRate(monthlySalary);
+          
+          let periodSalary = 0;
+          const dailyRate = employeeDailyRate;
+          
+          if (employeePayType === 'DAILY') {
+            periodSalary = 0;
+          } else {
+            periodSalary = calculateSemiMonthlySalary(monthlySalary, frequency);
+          }
+          
+          const hourlyRate = calculateHourlyRate(employeePayType === 'DAILY' ? employeeDailyRate * 26 : monthlySalary);
+          const otPay = totalOtHours * hourlyRate * 1.25;
+          
           const leaveDays = leaves.reduce((sum, leave) => sum + leave.daysCount, 0);
           
-          // Use countWorkingDays to exclude weekends from the period calculation
           const workDaysInPeriod = countWorkingDays(startDate, endDate);
           const expectedWorkDays = Math.max(0, workDaysInPeriod - leaveDays);
           
           const daysWithTimeLog = timeLogs.filter(log => log.clockIn !== null).length;
-          const absentDays = Math.max(0, expectedWorkDays - daysWithTimeLog);
-          const absenceDeduction = absentDays * dailyRate;
-          const lateDeduction = (totalLates / 60) * hourlyRate;
-          const undertimeDeduction = (totalUndertime / 60) * hourlyRate;
-          const otPay = totalOtHours * hourlyRate * 1.25;
-          const grossPay = periodSalary + otPay;
+          
+          let grossPay = 0;
+          let otherDeductions = 0;
+          
+          if (employeePayType === 'DAILY') {
+            grossPay = (daysWithTimeLog * dailyRate) + otPay;
+          } else {
+            const absentDays = Math.max(0, expectedWorkDays - daysWithTimeLog);
+            const absenceDeduction = absentDays * dailyRate;
+            const lateDeduction = (totalLates / 60) * hourlyRate;
+            const undertimeDeduction = (totalUndertime / 60) * hourlyRate;
+            otherDeductions = absenceDeduction + lateDeduction + undertimeDeduction;
+            grossPay = periodSalary + otPay - otherDeductions;
+          }
 
           // Using lib/payroll functions for 2026 rates
           const sss = includeSSS ? calculateSSS(monthlySalary) : { employeeShare: 0, employerShare: 0 };
@@ -138,7 +159,6 @@ export async function POST(request: Request) {
           const pagIbig = includePagIBIG ? calculatePagIBIG(monthlySalary) : { employeeShare: 0, employerShare: 0 };
           
           const totalGovDeductions = sss.employeeShare + philHealth.employeeShare + pagIbig.employeeShare;
-          const otherDeductions = absenceDeduction + lateDeduction + undertimeDeduction;
           const taxableIncome = grossPay - totalGovDeductions;
           const withholdingTax = includeTax ? calculateWithholdingTax(taxableIncome, frequency) : 0;
           
@@ -305,28 +325,48 @@ export async function POST(request: Request) {
     const totalLates = timeLogs.reduce((sum, log) => sum + (log.lateMinutes || 0), 0);
     const totalUndertime = timeLogs.reduce((sum, log) => sum + (log.undertimeMinutes || 0), 0);
 
-    const monthlySalary = employee.basicSalary;
-    const periodSalary = calculateSemiMonthlySalary(monthlySalary, frequency);
-
-    const dailyRate = calculateDailyRate(monthlySalary);
-    const hourlyRate = calculateHourlyRate(monthlySalary);
+    const monthlySalary = employee.payType === 'DAILY' 
+      ? (employee.dailyRate * 26) 
+      : employee.basicSalary;
+    const employeePayType = employee.payType || 'MONTHLY';
+    const employeeDailyRate = employee.dailyRate || calculateDailyRate(monthlySalary);
+    
+    let periodSalary = 0;
+    const dailyRate = employeeDailyRate;
+    
+    if (employeePayType === 'DAILY') {
+      periodSalary = 0;
+    } else {
+      periodSalary = calculateSemiMonthlySalary(monthlySalary, frequency);
+    }
+    
+    const hourlyRate = calculateHourlyRate(employeePayType === 'DAILY' ? employeeDailyRate * 26 : monthlySalary);
+    const otPay = totalOtHours * hourlyRate * 1.25;
 
     const leaveDays = leaves.reduce((sum, leave) => sum + leave.daysCount, 0);
 
-    // Use countWorkingDays to exclude weekends from the period calculation
     const workDaysInPeriod = countWorkingDays(startDate, endDate);
     const expectedWorkDays = Math.max(0, workDaysInPeriod - leaveDays);
 
     const daysWithTimeLog = timeLogs.filter(log => log.clockIn !== null).length;
-    const absentDays = Math.max(0, expectedWorkDays - daysWithTimeLog);
-    const absenceDeduction = absentDays * dailyRate;
-
-    const lateDeduction = (totalLates / 60) * hourlyRate;
-    const undertimeDeduction = (totalUndertime / 60) * hourlyRate;
-
-    const otPay = totalOtHours * hourlyRate * 1.25;
-
-    const grossPay = periodSalary + otPay;
+    
+    let grossPay = 0;
+    let otherDeductions = 0;
+    let absenceDeduction = 0;
+    let lateDeduction = 0;
+    let undertimeDeduction = 0;
+    let absentDays = 0;
+    
+    if (employeePayType === 'DAILY') {
+      grossPay = (daysWithTimeLog * dailyRate) + otPay;
+    } else {
+      absentDays = Math.max(0, expectedWorkDays - daysWithTimeLog);
+      absenceDeduction = absentDays * dailyRate;
+      lateDeduction = (totalLates / 60) * hourlyRate;
+      undertimeDeduction = (totalUndertime / 60) * hourlyRate;
+      otherDeductions = absenceDeduction + lateDeduction + undertimeDeduction;
+      grossPay = periodSalary + otPay - otherDeductions;
+    }
 
     // Using lib/payroll functions for 2026 rates
     const sss = includeSSS ? calculateSSS(monthlySalary) : { employeeShare: 0, employerShare: 0 };
@@ -334,7 +374,6 @@ export async function POST(request: Request) {
     const pagIbig = includePagIBIG ? calculatePagIBIG(monthlySalary) : { employeeShare: 0, employerShare: 0 };
 
     const totalGovDeductions = sss.employeeShare + philHealth.employeeShare + pagIbig.employeeShare;
-    const otherDeductions = absenceDeduction + lateDeduction + undertimeDeduction;
 
     const taxableIncome = grossPay - totalGovDeductions;
     const withholdingTax = includeTax ? calculateWithholdingTax(taxableIncome, frequency) : 0;
@@ -513,5 +552,40 @@ export async function GET(request: Request) {
   } catch (error) {
     console.error('Error fetching payrolls:', error);
     return NextResponse.json({ error: 'Failed to fetch payrolls' }, { status: 500 });
+  }
+}
+
+export async function DELETE(request: Request) {
+  try {
+    const { searchParams } = new URL(request.url);
+    const payrollId = searchParams.get('id');
+
+    if (!payrollId) {
+      return NextResponse.json({ error: 'Payroll ID is required' }, { status: 400 });
+    }
+
+    const payroll = await prisma.payroll.findUnique({
+      where: { id: payrollId },
+    });
+
+    if (!payroll) {
+      return NextResponse.json({ error: 'Payroll not found' }, { status: 404 });
+    }
+
+    await prisma.payroll.delete({
+      where: { id: payrollId },
+    });
+
+    // Invalidate cache
+    try {
+      await cache.delByPattern(`${PAYROLL_CACHE_PREFIX}*`);
+    } catch (cacheErr) {
+      console.error('Failed to invalidate payroll cache:', cacheErr);
+    }
+
+    return NextResponse.json({ message: 'Payroll deleted successfully' });
+  } catch (error) {
+    console.error('Error deleting payroll:', error);
+    return NextResponse.json({ error: 'Failed to delete payroll' }, { status: 500 });
   }
 }

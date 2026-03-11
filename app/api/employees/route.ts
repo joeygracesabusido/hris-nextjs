@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { cache } from '@/lib/redis';
+import { calculateDailyRate } from '@/lib/payroll';
 
 const EMPLOYEES_CACHE_KEY = 'employees:all';
 
@@ -40,7 +41,7 @@ export async function POST(request: Request) {
         position, department,
         payType: payType || 'MONTHLY',
         basicSalary: parseFloat(basicSalary || '0'),
-        dailyRate: parseFloat(dailyRate || '0'),
+        dailyRate: payType === 'DAILY' ? (parseFloat(dailyRate) || calculateDailyRate(parseFloat(basicSalary))) : parseFloat(dailyRate || '0'),
         payrollFrequency,
         managerId: managerId || null,
         hireDate: new Date(hireDate),
