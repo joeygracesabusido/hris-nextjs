@@ -287,7 +287,11 @@ model Payroll {
 
   withholdingTax Float     @default(0)
 
-  otherDeductions Float     @default(0)
+  otherDeductions Float    @default(0)
+
+  adjustmentAdd      Float    @default(0)
+  adjustmentDeduct   Float    @default(0)
+  adjustmentReason   String?
 
   totalDeductions Float    @default(0)
   netPay          Float    @default(0)

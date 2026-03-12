@@ -37,6 +37,9 @@ interface PayrollRecord {
   status: string;
   createdAt: string;
   employee: Employee;
+  adjustmentAdd?: number;
+  adjustmentDeduct?: number;
+  adjustmentReason?: string;
 }
 
 interface PayrollResult {
@@ -55,6 +58,9 @@ interface PayrollResult {
     netPay: number;
     periodStart: string;
     periodEnd: string;
+    adjustmentAdd?: number;
+    adjustmentDeduct?: number;
+    adjustmentReason?: string;
   };
   details: {
     employee: Employee;
@@ -73,6 +79,7 @@ interface PayrollResult {
     totals: {
       totalOtHours: number;
       leaveDays: number;
+      offDays?: number;
       absentDays: number;
       lateMinutes: number;
       undertimeMinutes: number;
@@ -98,6 +105,9 @@ export default function PayrollPage() {
     periodStart: '',
     periodEnd: '',
     deductions: ['sss', 'philhealth', 'pagibig', 'tax', 'cash_advance', 'sss_loan', 'pagibig_loan'],
+    adjustmentAdd: '',
+    adjustmentDeduct: '',
+    adjustmentReason: '',
   });
   const [userRole, setUserRole] = useState<string>('');
   const [userEmployeeId, setUserEmployeeId] = useState<string>('');
@@ -211,12 +221,18 @@ export default function PayrollPage() {
     setComputing(true);
     setResult(null);
 
+    const payload = {
+      ...formData,
+      adjustmentAdd: parseFloat(formData.adjustmentAdd) || 0,
+      adjustmentDeduct: parseFloat(formData.adjustmentDeduct) || 0,
+    };
+
     try {
       const res = await fetch('/api/payroll', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify(formData),
+        body: JSON.stringify(payload),
       });
 
       const text = await res.text();
@@ -277,6 +293,199 @@ export default function PayrollPage() {
       style: 'currency',
       currency: 'PHP',
     }).format(amount);
+  };
+
+  const handleExport = (result: PayrollResult) => {
+    const employee = result.details.employee;
+    const periodStart = new Date(result.payroll.periodStart).toLocaleDateString();
+    const periodEnd = new Date(result.payroll.periodEnd).toLocaleDateString();
+
+    const csvContent = [
+      'PAYSLIP EXPORT',
+      `Employee: ${employee.fullName}`,
+      `Position: ${employee.position}`,
+      `Department: ${employee.department}`,
+      `Pay Period: ${periodStart} - ${periodEnd}`,
+      '',
+      'EARNINGS',
+      `Base Salary,${formatCurrency(result.details.earnings.baseSalary)}`,
+      `Overtime (${result.details.totals.totalOtHours} hrs),${formatCurrency(result.details.earnings.overtimePay)}`,
+      (result.payroll as any).adjustmentAdd > 0 ? `Adjustment (+),${formatCurrency((result.payroll as any).adjustmentAdd)}` : null,
+      `GROSS PAY,${formatCurrency(result.details.earnings.grossPay)}`,
+      '',
+      'DEDUCTIONS',
+      result.details.deductions.absences > 0 ? `Absences (${result.details.totals.absentDays} days),${formatCurrency(result.details.deductions.absences)}` : null,
+      result.details.deductions.lates > 0 ? `Lates (${result.details.totals.lateMinutes} min),${formatCurrency(result.details.deductions.lates)}` : null,
+      result.details.deductions.undertime > 0 ? `Undertime (${result.details.totals.undertimeMinutes} min),${formatCurrency(result.details.deductions.undertime)}` : null,
+      `SSS,${formatCurrency(result.details.deductions.sss)}`,
+      `PhilHealth,${formatCurrency(result.details.deductions.philHealth)}`,
+      `Pag-IBIG,${formatCurrency(result.details.deductions.pagIbig)}`,
+      `Withholding Tax,${formatCurrency(result.details.deductions.withholdingTax)}`,
+      `TOTAL DEDUCTIONS,${formatCurrency(result.details.deductions.totalDeductions)}`,
+      '',
+      `NET PAY,${formatCurrency(result.payroll.netPay)}`,
+    ].filter(Boolean).join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `payslip_${employee.fullName.replace(/\s+/g, '_')}_${periodStart}_${periodEnd}.csv`;
+    link.click();
+  };
+
+  const handlePrint = (result: PayrollResult) => {
+    const employee = result.details.employee;
+    const periodStart = new Date(result.payroll.periodStart).toLocaleDateString();
+    const periodEnd = new Date(result.payroll.periodEnd).toLocaleDateString();
+
+    const printWindow = window.open('', '_blank', 'width=800,height=600');
+    if (!printWindow) return;
+
+    const html = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Payslip - ${employee.fullName}</title>
+        <style>
+          body { font-family: Arial, sans-serif; padding: 40px; max-width: 800px; margin: 0 auto; }
+          h1 { color: #1e40af; border-bottom: 2px solid #1e40af; padding-bottom: 10px; }
+          .header { margin-bottom: 30px; }
+          .employee-info { background: #f3f4f6; padding: 15px; border-radius: 8px; margin-bottom: 20px; }
+          .employee-info p { margin: 5px 0; }
+          .grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px; margin: 20px 0; }
+          .section { border: 1px solid #e5e7eb; border-radius: 8px; padding: 15px; }
+          .section h3 { margin-top: 0; color: #374151; border-bottom: 1px solid #e5e7eb; padding-bottom: 8px; }
+          .row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #f3f4f6; }
+          .row:last-child { border-bottom: none; }
+          .total { font-weight: bold; font-size: 18px; border-top: 2px solid #374151; padding-top: 10px; margin-top: 10px; }
+          .gross { color: #059669; }
+          .deductions { color: #dc2626; }
+          .net { color: #059669; font-size: 24px; font-weight: bold; }
+          .footer { margin-top: 40px; text-align: center; color: #6b7280; font-size: 12px; }
+          @media print { body { padding: 20px; } }
+        </style>
+      </head>
+      <body>
+        <h1>PAYSLIP</h1>
+        <div class="header">
+          <div class="employee-info">
+            <p><strong>Employee:</strong> ${employee.fullName}</p>
+            <p><strong>Position:</strong> ${employee.position}</p>
+            <p><strong>Department:</strong> ${employee.department}</p>
+            <p><strong>Pay Period:</strong> ${periodStart} - ${periodEnd}</p>
+          </div>
+        </div>
+        <div class="grid">
+          <div class="section">
+            <h3>Earnings</h3>
+            <div class="row"><span>Base Salary</span><span>${formatCurrency(result.details.earnings.baseSalary)}</span></div>
+            <div class="row"><span>Overtime (${result.details.totals.totalOtHours} hrs)</span><span>+${formatCurrency(result.details.earnings.overtimePay)}</span></div>
+            ${(result.payroll as any).adjustmentAdd > 0 ? `<div class="row"><span>Adjustment (+)</span><span>+${formatCurrency((result.payroll as any).adjustmentAdd)}</span></div>` : ''}
+            <div class="row total gross"><span>Gross Pay</span><span>${formatCurrency(result.details.earnings.grossPay)}</span></div>
+          </div>
+          <div class="section">
+            <h3>Deductions</h3>
+            ${result.details.deductions.absences > 0 ? `<div class="row"><span>Absences (${result.details.totals.absentDays} days)</span><span>-${formatCurrency(result.details.deductions.absences)}</span></div>` : ''}
+            ${result.details.deductions.lates > 0 ? `<div class="row"><span>Lates (${result.details.totals.lateMinutes} min)</span><span>-${formatCurrency(result.details.deductions.lates)}</span></div>` : ''}
+            ${result.details.deductions.undertime > 0 ? `<div class="row"><span>Undertime (${result.details.totals.undertimeMinutes} min)</span><span>-${formatCurrency(result.details.deductions.undertime)}</span></div>` : ''}
+            <div class="row"><span>SSS</span><span>-${formatCurrency(result.details.deductions.sss)}</span></div>
+            <div class="row"><span>PhilHealth</span><span>-${formatCurrency(result.details.deductions.philHealth)}</span></div>
+            <div class="row"><span>Pag-IBIG</span><span>-${formatCurrency(result.details.deductions.pagIbig)}</span></div>
+            <div class="row"><span>Withholding Tax</span><span>-${formatCurrency(result.details.deductions.withholdingTax)}</span></div>
+            <div class="row total deductions"><span>Total Deductions</span><span>-${formatCurrency(result.details.deductions.totalDeductions)}</span></div>
+          </div>
+          <div class="section" style="background: #ecfdf5; border-color: #059669;">
+            <h3 style="color: #059669;">NET PAY</h3>
+            <div class="net">${formatCurrency(result.payroll.netPay)}</div>
+          </div>
+        </div>
+        <div class="footer">
+          <p>Generated on ${new Date().toLocaleDateString()} | HRIS Philippines</p>
+        </div>
+        <script>window.onload = function() { window.print(); }</script>
+      </body>
+      </html>
+    `;
+
+    printWindow.document.write(html);
+    printWindow.document.close();
+  };
+
+  const handlePrintRecord = (record: PayrollRecord) => {
+    const employee = record.employee;
+    const periodStart = new Date(record.periodStart).toLocaleDateString();
+    const periodEnd = new Date(record.periodEnd).toLocaleDateString();
+
+    const printWindow = window.open('', '_blank', 'width=800,height=600');
+    if (!printWindow) return;
+
+    const html = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Payslip - ${employee.fullName}</title>
+        <style>
+          body { font-family: Arial, sans-serif; padding: 40px; max-width: 800px; margin: 0 auto; }
+          h1 { color: #1e40af; border-bottom: 2px solid #1e40af; padding-bottom: 10px; }
+          .header { margin-bottom: 30px; }
+          .employee-info { background: #f3f4f6; padding: 15px; border-radius: 8px; margin-bottom: 20px; }
+          .employee-info p { margin: 5px 0; }
+          .grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px; margin: 20px 0; }
+          .section { border: 1px solid #e5e7eb; border-radius: 8px; padding: 15px; }
+          .section h3 { margin-top: 0; color: #374151; border-bottom: 1px solid #e5e7eb; padding-bottom: 8px; }
+          .row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #f3f4f6; }
+          .row:last-child { border-bottom: none; }
+          .total { font-weight: bold; font-size: 18px; border-top: 2px solid #374151; padding-top: 10px; margin-top: 10px; }
+          .gross { color: #059669; }
+          .deductions { color: #dc2626; }
+          .net { color: #059669; font-size: 24px; font-weight: bold; }
+          .footer { margin-top: 40px; text-align: center; color: #6b7280; font-size: 12px; }
+          @media print { body { padding: 20px; } }
+        </style>
+      </head>
+      <body>
+        <h1>PAYSLIP</h1>
+        <div class="header">
+          <div class="employee-info">
+            <p><strong>Employee:</strong> ${employee.fullName}</p>
+            <p><strong>Position:</strong> ${employee.position}</p>
+            <p><strong>Department:</strong> ${employee.department}</p>
+            <p><strong>Pay Period:</strong> ${periodStart} - ${periodEnd}</p>
+          </div>
+        </div>
+        <div class="grid">
+          <div class="section">
+            <h3>Earnings</h3>
+            <div class="row"><span>Base Salary</span><span>${formatCurrency(record.basicSalary)}</span></div>
+            <div class="row"><span>Overtime (${record.otHours} hrs)</span><span>+${formatCurrency(record.otPay)}</span></div>
+            ${record.adjustmentAdd && record.adjustmentAdd > 0 ? `<div class="row"><span>Adjustment (+)</span><span>+${formatCurrency(record.adjustmentAdd)}</span></div>` : ''}
+            ${record.adjustmentReason ? `<div class="row" style="font-size:11px;"><span>Reason:</span><span>${record.adjustmentReason}</span></div>` : ''}
+            <div class="row total gross"><span>Gross Pay</span><span>${formatCurrency(record.grossPay)}</span></div>
+          </div>
+          <div class="section">
+            <h3>Deductions</h3>
+            <div class="row"><span>SSS</span><span>-${formatCurrency(record.sssEmployee)}</span></div>
+            <div class="row"><span>PhilHealth</span><span>-${formatCurrency(record.philhealthEmployee)}</span></div>
+            <div class="row"><span>Pag-IBIG</span><span>-${formatCurrency(record.pagibigEmployee)}</span></div>
+            <div class="row"><span>Withholding Tax</span><span>-${formatCurrency(record.withholdingTax)}</span></div>
+            <div class="row"><span>Other Deductions</span><span>-${formatCurrency(record.otherDeductions)}</span></div>
+            <div class="row total deductions"><span>Total Deductions</span><span>-${formatCurrency(record.totalDeductions)}</span></div>
+          </div>
+          <div class="section" style="background: #ecfdf5; border-color: #059669;">
+            <h3 style="color: #059669;">NET PAY</h3>
+            <div class="net">${formatCurrency(record.netPay)}</div>
+          </div>
+        </div>
+        <div class="footer">
+          <p>Generated on ${new Date().toLocaleDateString()} | HRIS Philippines</p>
+        </div>
+        <script>window.onload = function() { window.print(); }</script>
+      </body>
+      </html>
+    `;
+
+    printWindow.document.write(html);
+    printWindow.document.close();
   };
 
   const handleDeletePayroll = async (payrollId: string) => {
@@ -434,6 +643,59 @@ export default function PayrollPage() {
             </div>
           </div>
 
+          <div className="md:col-span-4 border-t pt-4 mt-2">
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Payroll Adjustments (for missing/previous period corrections)
+            </label>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 bg-amber-50 rounded-lg border border-amber-200">
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">
+                  Additional Earnings (+)
+                </label>
+                <input
+                  type="number"
+                  name="adjustmentAdd"
+                  value={formData.adjustmentAdd}
+                  onChange={(e) => setFormData({ ...formData, adjustmentAdd: e.target.value })}
+                  min="0"
+                  step="0.01"
+                  placeholder="0.00"
+                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
+                />
+                <p className="text-xs text-gray-500 mt-1">Backpay, bonus, etc.</p>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">
+                  Deductions (-)
+                </label>
+                <input
+                  type="number"
+                  name="adjustmentDeduct"
+                  value={formData.adjustmentDeduct}
+                  onChange={(e) => setFormData({ ...formData, adjustmentDeduct: e.target.value })}
+                  min="0"
+                  step="0.01"
+                  placeholder="0.00"
+                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
+                />
+                <p className="text-xs text-gray-500 mt-1">Overpayment recovery</p>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">
+                  Reason
+                </label>
+                <input
+                  type="text"
+                  name="adjustmentReason"
+                  value={formData.adjustmentReason}
+                  onChange={(e) => setFormData({ ...formData, adjustmentReason: e.target.value })}
+                  placeholder="e.g., Backpay for January 2026"
+                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
+                />
+              </div>
+            </div>
+          </div>
+
           <div className="md:col-span-4">
             <button
               type="submit"
@@ -477,11 +739,17 @@ export default function PayrollPage() {
                 </p>
               </div>
               <div className="flex gap-2">
-                <button className="px-4 py-2 border rounded-lg hover:bg-gray-50 flex items-center gap-2">
+                <button 
+                  onClick={() => handleExport(result)}
+                  className="px-4 py-2 border rounded-lg hover:bg-gray-50 flex items-center gap-2"
+                >
                   <Download className="w-4 h-4" />
                   Export
                 </button>
-                <button className="px-4 py-2 border rounded-lg hover:bg-gray-50 flex items-center gap-2">
+                <button 
+                  onClick={() => handlePrint(result)}
+                  className="px-4 py-2 border rounded-lg hover:bg-gray-50 flex items-center gap-2"
+                >
                   <Printer className="w-4 h-4" />
                   Print
                 </button>
@@ -491,7 +759,7 @@ export default function PayrollPage() {
 
           <div className="p-6">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <div className="space-y-4">
+                <div className="space-y-4">
                 <h3 className="font-semibold text-gray-900 flex items-center gap-2">
                   <DollarSign className="w-4 h-4" />
                   Earnings
@@ -508,6 +776,18 @@ export default function PayrollPage() {
                     </span>
                     <span className="font-medium">+{formatCurrency(result.details.earnings.overtimePay)}</span>
                   </div>
+                  {(result.payroll as any).adjustmentAdd > 0 && (
+                    <div className="flex justify-between text-green-600">
+                      <span className="text-gray-600">Adjustment (+)</span>
+                      <span className="font-medium">+{formatCurrency((result.payroll as any).adjustmentAdd)}</span>
+                    </div>
+                  )}
+                  {(result.payroll as any).adjustmentDeduct > 0 && (
+                    <div className="flex justify-between text-red-600">
+                      <span className="text-gray-600">Adjustment (-)</span>
+                      <span className="font-medium">-{formatCurrency((result.payroll as any).adjustmentDeduct)}</span>
+                    </div>
+                  )}
                   <div className="flex justify-between pt-2 border-t font-semibold">
                     <span>Gross Pay</span>
                     <span className="text-green-600">{formatCurrency(result.details.earnings.grossPay)}</span>
@@ -661,6 +941,13 @@ export default function PayrollPage() {
                       </td>
                       <td className="px-4 py-3 text-center">
                         <button
+                          onClick={() => handlePrintRecord(record)}
+                          className="p-1 hover:bg-blue-50 text-blue-600 rounded mr-1"
+                          title="Print payslip"
+                        >
+                          <Printer className="w-4 h-4" />
+                        </button>
+                        <button
                           onClick={() => setExpandedPayrollId(expandedPayrollId === record.id ? null : record.id)}
                           className="p-1 hover:bg-gray-100 rounded"
                         >
@@ -689,6 +976,15 @@ export default function PayrollPage() {
                                 <div className="flex justify-between"><span className="text-gray-600">Base Salary</span><span>{formatCurrency(record.basicSalary)}</span></div>
                                 <div className="flex justify-between"><span className="text-gray-600">OT Hours</span><span>{record.otHours} hrs</span></div>
                                 <div className="flex justify-between"><span className="text-gray-600">OT Pay</span><span>{formatCurrency(record.otPay)}</span></div>
+                                {(record as any).adjustmentAdd > 0 && (
+                                  <div className="flex justify-between text-green-600"><span className="text-gray-600">Adjustment (+)</span><span>+{formatCurrency((record as any).adjustmentAdd)}</span></div>
+                                )}
+                                {(record as any).adjustmentDeduct > 0 && (
+                                  <div className="flex justify-between text-red-600"><span className="text-gray-600">Adjustment (-)</span><span>-{formatCurrency((record as any).adjustmentDeduct)}</span></div>
+                                )}
+                                {(record as any).adjustmentReason && (
+                                  <div className="text-xs text-gray-500 italic">Reason: {(record as any).adjustmentReason}</div>
+                                )}
                                 <div className="flex justify-between font-medium border-t pt-1"><span>Gross Pay</span><span>{formatCurrency(record.grossPay)}</span></div>
                               </div>
                             </div>

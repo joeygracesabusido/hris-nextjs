@@ -40,7 +40,10 @@ export async function POST(request: Request) {
       periodStart, 
       periodEnd, 
       frequency, 
-      deductions = ['sss', 'philhealth', 'pagibig', 'tax', 'cash_advance', 'sss_loan', 'pagibig_loan'] 
+      deductions = ['sss', 'philhealth', 'pagibig', 'tax', 'cash_advance', 'sss_loan', 'pagibig_loan'],
+      adjustmentAdd = 0,
+      adjustmentDeduct = 0,
+      adjustmentReason = ''
     } = body;
 
     if (!periodStart || !periodEnd || !frequency) {
@@ -98,6 +101,16 @@ export async function POST(request: Request) {
             },
           });
 
+          const shiftSchedules = await prisma.shiftSchedule.findMany({
+            where: {
+              employeeId: employee.id,
+              date: { gte: startDate, lte: endDate },
+            },
+            include: { shift: true },
+          });
+
+          const offDaysInPeriod = shiftSchedules.filter(s => s.shift.isOff).length;
+
           const approvedOvertimeLogs = timeLogs.filter(log => log.otStatus === 'APPROVED' && log.otHours > 0);
           const totalLogOtHours = approvedOvertimeLogs.reduce((sum, log) => sum + log.otHours, 0);
 
@@ -135,7 +148,7 @@ export async function POST(request: Request) {
           const leaveDays = leaves.reduce((sum, leave) => sum + leave.daysCount, 0);
           
           const workDaysInPeriod = countWorkingDays(startDate, endDate);
-          const expectedWorkDays = Math.max(0, workDaysInPeriod - leaveDays);
+          const expectedWorkDays = Math.max(0, workDaysInPeriod - leaveDays - offDaysInPeriod);
           
           const daysWithTimeLog = timeLogs.filter(log => log.clockIn !== null).length;
           
@@ -143,14 +156,14 @@ export async function POST(request: Request) {
           let otherDeductions = 0;
           
           if (employeePayType === 'DAILY') {
-            grossPay = (daysWithTimeLog * dailyRate) + otPay;
+            grossPay = (daysWithTimeLog * dailyRate) + otPay + adjustmentAdd - adjustmentDeduct;
           } else {
             const absentDays = Math.max(0, expectedWorkDays - daysWithTimeLog);
             const absenceDeduction = absentDays * dailyRate;
             const lateDeduction = (totalLates / 60) * hourlyRate;
             const undertimeDeduction = (totalUndertime / 60) * hourlyRate;
             otherDeductions = absenceDeduction + lateDeduction + undertimeDeduction;
-            grossPay = periodSalary + otPay - otherDeductions;
+            grossPay = periodSalary + otPay - otherDeductions + adjustmentAdd - adjustmentDeduct;
           }
 
           // Using lib/payroll functions for 2026 rates
@@ -212,7 +225,10 @@ export async function POST(request: Request) {
               pagibigEmployee: pagIbig.employeeShare,
               pagibigEmployer: pagIbig.employerShare,
               withholdingTax,
-              otherDeductions: otherDeductions + totalAdvanceDeductions, // Include advances in other deductions for simple storage
+              otherDeductions: otherDeductions + totalAdvanceDeductions,
+              adjustmentAdd,
+              adjustmentDeduct,
+              adjustmentReason,
               totalDeductions,
               netPay,
               status: 'PROCESSED',
@@ -308,6 +324,16 @@ export async function POST(request: Request) {
       },
     });
 
+    const shiftSchedules = await prisma.shiftSchedule.findMany({
+      where: {
+        employeeId,
+        date: { gte: startDate, lte: endDate },
+      },
+      include: { shift: true },
+    });
+
+    const offDaysInPeriod = shiftSchedules.filter(s => s.shift.isOff).length;
+
     const approvedOvertimeLogs = timeLogs.filter(log => log.otStatus === 'APPROVED' && log.otHours > 0);
     const totalLogOtHours = approvedOvertimeLogs.reduce((sum, log) => sum + log.otHours, 0);
 
@@ -346,7 +372,7 @@ export async function POST(request: Request) {
     const leaveDays = leaves.reduce((sum, leave) => sum + leave.daysCount, 0);
 
     const workDaysInPeriod = countWorkingDays(startDate, endDate);
-    const expectedWorkDays = Math.max(0, workDaysInPeriod - leaveDays);
+    const expectedWorkDays = Math.max(0, workDaysInPeriod - leaveDays - offDaysInPeriod);
 
     const daysWithTimeLog = timeLogs.filter(log => log.clockIn !== null).length;
     
@@ -358,14 +384,14 @@ export async function POST(request: Request) {
     let absentDays = 0;
     
     if (employeePayType === 'DAILY') {
-      grossPay = (daysWithTimeLog * dailyRate) + otPay;
+      grossPay = (daysWithTimeLog * dailyRate) + otPay + adjustmentAdd - adjustmentDeduct;
     } else {
       absentDays = Math.max(0, expectedWorkDays - daysWithTimeLog);
       absenceDeduction = absentDays * dailyRate;
       lateDeduction = (totalLates / 60) * hourlyRate;
       undertimeDeduction = (totalUndertime / 60) * hourlyRate;
       otherDeductions = absenceDeduction + lateDeduction + undertimeDeduction;
-      grossPay = periodSalary + otPay - otherDeductions;
+      grossPay = periodSalary + otPay - otherDeductions + adjustmentAdd - adjustmentDeduct;
     }
 
     // Using lib/payroll functions for 2026 rates
@@ -428,6 +454,9 @@ export async function POST(request: Request) {
         pagibigEmployer: pagIbig.employerShare,
         withholdingTax,
         otherDeductions: otherDeductions + totalAdvanceDeductions,
+        adjustmentAdd,
+        adjustmentDeduct,
+        adjustmentReason,
         totalDeductions,
         netPay,
         status: 'PROCESSED',
@@ -498,6 +527,7 @@ export async function POST(request: Request) {
         totals: {
           totalOtHours,
           leaveDays,
+          offDays: offDaysInPeriod,
           absentDays,
           lateMinutes: totalLates,
           undertimeMinutes: totalUndertime,

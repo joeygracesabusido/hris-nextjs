@@ -1,14 +1,14 @@
 {
   "pages": {
-    "/(auth)/login/page": [
+    "/(dashboard)/payroll/page": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
-      "static/chunks/app/(auth)/login/page.js"
+      "static/chunks/app/(dashboard)/payroll/page.js"
     ],
-    "/(auth)/layout": [
+    "/(dashboard)/layout": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
-      "static/chunks/app/(auth)/layout.js"
+      "static/chunks/app/(dashboard)/layout.js"
     ],
     "/layout": [
       "static/chunks/webpack.js",
@@ -16,25 +16,15 @@
       "static/css/app/layout.css",
       "static/chunks/app/layout.js"
     ],
+    "/(dashboard)/payroll/advances/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/(dashboard)/payroll/advances/page.js"
+    ],
     "/(dashboard)/dashboard/page": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
       "static/chunks/app/(dashboard)/dashboard/page.js"
-    ],
-    "/(dashboard)/layout": [
-      "static/chunks/webpack.js",
-      "static/chunks/main-app.js",
-      "static/chunks/app/(dashboard)/layout.js"
-    ],
-    "/(dashboard)/payroll/page": [
-      "static/chunks/webpack.js",
-      "static/chunks/main-app.js",
-      "static/chunks/app/(dashboard)/payroll/page.js"
-    ],
-    "/(dashboard)/employees/page": [
-      "static/chunks/webpack.js",
-      "static/chunks/main-app.js",
-      "static/chunks/app/(dashboard)/employees/page.js"
     ]
   }
 }

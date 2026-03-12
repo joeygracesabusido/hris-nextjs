@@ -1,7 +1,8 @@
 {
+  "/api/advances/route": "app/api/advances/route.js",
+  "/api/employees/route": "app/api/employees/route.js",
   "/api/dashboard/stats/route": "app/api/dashboard/stats/route.js",
-  "/(auth)/login/page": "app/(auth)/login/page.js",
-  "/(dashboard)/dashboard/page": "app/(dashboard)/dashboard/page.js",
   "/(dashboard)/payroll/page": "app/(dashboard)/payroll/page.js",
-  "/(dashboard)/employees/page": "app/(dashboard)/employees/page.js"
+  "/(dashboard)/payroll/advances/page": "app/(dashboard)/payroll/advances/page.js",
+  "/(dashboard)/dashboard/page": "app/(dashboard)/dashboard/page.js"
 }
