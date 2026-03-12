@@ -111,7 +111,6 @@ export default function PayrollPage() {
   });
   const [userRole, setUserRole] = useState<string>('');
   const [userEmployeeId, setUserEmployeeId] = useState<string>('');
-  const [userEmail, setUserEmail] = useState<string>('');
 
   const toggleDeduction = (deduction: string) => {
     setFormData(prev => {
@@ -203,7 +202,6 @@ export default function PayrollPage() {
     const role = cookies.userRole || '';
     const email = cookies.userEmail || '';
     setUserRole(role);
-    setUserEmail(email);
     fetchEmployees(email);
     fetchPayrollRecords();
   }, []);
@@ -310,7 +308,7 @@ export default function PayrollPage() {
       'EARNINGS',
       `Base Salary,${formatCurrency(result.details.earnings.baseSalary)}`,
       `Overtime (${result.details.totals.totalOtHours} hrs),${formatCurrency(result.details.earnings.overtimePay)}`,
-      (result.payroll as any).adjustmentAdd > 0 ? `Adjustment (+),${formatCurrency((result.payroll as any).adjustmentAdd)}` : null,
+      (result.payroll.adjustmentAdd ?? 0) > 0 ? `Adjustment (+),${formatCurrency(result.payroll.adjustmentAdd!)}` : null,
       `GROSS PAY,${formatCurrency(result.details.earnings.grossPay)}`,
       '',
       'DEDUCTIONS',
@@ -379,9 +377,9 @@ export default function PayrollPage() {
           <div class="section">
             <h3>Earnings</h3>
             <div class="row"><span>Base Salary</span><span>${formatCurrency(result.details.earnings.baseSalary)}</span></div>
-            <div class="row"><span>Overtime (${result.details.totals.totalOtHours} hrs)</span><span>+${formatCurrency(result.details.earnings.overtimePay)}</span></div>
-            ${(result.payroll as any).adjustmentAdd > 0 ? `<div class="row"><span>Adjustment (+)</span><span>+${formatCurrency((result.payroll as any).adjustmentAdd)}</span></div>` : ''}
-            <div class="row total gross"><span>Gross Pay</span><span>${formatCurrency(result.details.earnings.grossPay)}</span></div>
+            <div className="row"><span>Overtime (${result.details.totals.totalOtHours} hrs)</span><span>+${formatCurrency(result.details.earnings.overtimePay)}</span></div>
+            ${(result.payroll.adjustmentAdd ?? 0) > 0 ? `<div class="row"><span>Adjustment (+)</span><span>+${formatCurrency(result.payroll.adjustmentAdd!)}</span></div>` : ''}
+            <div className="row total gross"><span>Gross Pay</span><span>${formatCurrency(result.details.earnings.grossPay)}</span></div>
           </div>
           <div class="section">
             <h3>Deductions</h3>
@@ -776,16 +774,16 @@ export default function PayrollPage() {
                     </span>
                     <span className="font-medium">+{formatCurrency(result.details.earnings.overtimePay)}</span>
                   </div>
-                  {(result.payroll as any).adjustmentAdd > 0 && (
+                  {(result.payroll.adjustmentAdd ?? 0) > 0 && (
                     <div className="flex justify-between text-green-600">
                       <span className="text-gray-600">Adjustment (+)</span>
-                      <span className="font-medium">+{formatCurrency((result.payroll as any).adjustmentAdd)}</span>
+                      <span className="font-medium">+{formatCurrency(result.payroll.adjustmentAdd!)}</span>
                     </div>
                   )}
-                  {(result.payroll as any).adjustmentDeduct > 0 && (
+                  {(result.payroll.adjustmentDeduct ?? 0) > 0 && (
                     <div className="flex justify-between text-red-600">
                       <span className="text-gray-600">Adjustment (-)</span>
-                      <span className="font-medium">-{formatCurrency((result.payroll as any).adjustmentDeduct)}</span>
+                      <span className="font-medium">-{formatCurrency(result.payroll.adjustmentDeduct!)}</span>
                     </div>
                   )}
                   <div className="flex justify-between pt-2 border-t font-semibold">
@@ -976,14 +974,14 @@ export default function PayrollPage() {
                                 <div className="flex justify-between"><span className="text-gray-600">Base Salary</span><span>{formatCurrency(record.basicSalary)}</span></div>
                                 <div className="flex justify-between"><span className="text-gray-600">OT Hours</span><span>{record.otHours} hrs</span></div>
                                 <div className="flex justify-between"><span className="text-gray-600">OT Pay</span><span>{formatCurrency(record.otPay)}</span></div>
-                                {(record as any).adjustmentAdd > 0 && (
-                                  <div className="flex justify-between text-green-600"><span className="text-gray-600">Adjustment (+)</span><span>+{formatCurrency((record as any).adjustmentAdd)}</span></div>
+                                {(record.adjustmentAdd ?? 0) > 0 && (
+                                  <div className="flex justify-between text-green-600"><span className="text-gray-600">Adjustment (+)</span><span>+{formatCurrency(record.adjustmentAdd!)}</span></div>
                                 )}
-                                {(record as any).adjustmentDeduct > 0 && (
-                                  <div className="flex justify-between text-red-600"><span className="text-gray-600">Adjustment (-)</span><span>-{formatCurrency((record as any).adjustmentDeduct)}</span></div>
+                                {(record.adjustmentDeduct ?? 0) > 0 && (
+                                  <div className="flex justify-between text-red-600"><span className="text-gray-600">Adjustment (-)</span><span>-{formatCurrency(record.adjustmentDeduct!)}</span></div>
                                 )}
-                                {(record as any).adjustmentReason && (
-                                  <div className="text-xs text-gray-500 italic">Reason: {(record as any).adjustmentReason}</div>
+                                {record.adjustmentReason && (
+                                  <div className="text-xs text-gray-500 italic">Reason: {record.adjustmentReason}</div>
                                 )}
                                 <div className="flex justify-between font-medium border-t pt-1"><span>Gross Pay</span><span>{formatCurrency(record.grossPay)}</span></div>
                               </div>
