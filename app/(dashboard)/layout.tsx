@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { LayoutDashboard, Users, DollarSign, Clock, FileText, LogOut, Menu, UserCheck, CalendarDays, Timer, Wallet } from 'lucide-react';
+import { LayoutDashboard, Users, DollarSign, Clock, FileText, LogOut, Menu, UserCheck, CalendarDays, Timer, Wallet, Settings, Calendar } from 'lucide-react';
 import { useState, useEffect } from 'react';
 
 const navItems = [
@@ -15,7 +15,9 @@ const navItems = [
   { href: '/payroll', label: 'Payroll', icon: DollarSign },
   { href: '/payroll/advances', label: 'Advances', icon: Wallet },
   { href: '/time-logs', label: 'Time Logs', icon: Clock },
+  { href: '/holidays', label: 'Holidays', icon: Calendar, adminOnly: true },
   { href: '/reports', label: 'Reports', icon: FileText },
+  { href: '/settings', label: 'Settings', icon: Settings, adminOnly: true },
 ];
 
 export default function DashboardLayout({
@@ -43,7 +45,10 @@ export default function DashboardLayout({
 
   const filteredNavItems = navItems.filter((item) => {
     if (userRole === 'EMPLOYEE') {
-      return !['/users', '/employees', '/reports'].includes(item.href);
+      return !['/users', '/employees', '/reports', '/settings'].includes(item.href);
+    }
+    if (item.adminOnly && userRole !== 'ADMIN' && userRole !== 'HR') {
+      return false;
     }
     return true;
   });
