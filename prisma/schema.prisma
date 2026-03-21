@@ -15,6 +15,14 @@ datasource db {
 // MODELS
 // ============================================================================
 
+/// User role enum
+enum Role {
+  ADMIN
+  HR
+  MANAGER
+  EMPLOYEE
+}
+
 /// User model for authentication
 /// Links to Employee record for role-based access
 model User {
@@ -23,7 +31,7 @@ model User {
   email         String    @unique
   name          String?
   password      String?
-  role          String    @default("EMPLOYEE")
+  role          Role      @default(EMPLOYEE)
   status        String    @default("FOR_APPROVAL")
   image         String?
   emailVerified DateTime?
@@ -227,6 +235,45 @@ model OvertimeRequest {
   @@map("overtimerequests")
 }
 
+/// HolidayType enum for Philippine labor law compliance
+enum HolidayType {
+  REGULAR          // 200% pay if work, 100% if no work
+  SPECIAL          // 150% pay if work, 100% if no work
+  SPECIAL_NON_WORK // Normal pay if work, no pay if no work
+}
+
+/// OfficeLocation model for GPS geofencing
+model OfficeLocation {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  name        String   @unique
+  latitude    Float
+  longitude   Float
+  radius      Int      @default(5) // in meters
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("officelocations")
+}
+
+/// Holiday model for managing company holidays
+model Holiday {
+  id        String      @id @default(auto()) @map("_id") @db.ObjectId
+  name      String
+  date      DateTime    @db.Date
+  year      Int
+  type      HolidayType
+  branchId  String?     @db.ObjectId
+  isActive  Boolean     @default(true)
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+
+  @@unique([date, branchId])
+  @@index([year])
+  @@index([branchId])
+  @@map("holidays")
+}
+
 /// TimeLog model for daily attendance tracking
 model TimeLog {
   id          String    @id @default(auto()) @map("_id") @db.ObjectId
@@ -243,6 +290,11 @@ model TimeLog {
   otStatus    OtStatus  @default(PENDING)
   lateMinutes Float     @default(0)
   undertimeMinutes Float @default(0)
+
+  clockInLatitude   Float?
+  clockInLongitude  Float?
+  clockOutLatitude  Float?
+  clockOutLongitude Float?
 
   notes       String?
 
