@@ -88,7 +88,32 @@ export async function calculateMonthlyAccrual(
     }
 
     const result = await prisma.$transaction(async (tx) => {
-      const prevBalance = leaveCredit!.availableDays
+      // Re-check for duplicate within transaction to prevent race condition
+      const startOfMonth = new Date(year, month - 1, 1)
+      const endOfMonth = new Date(year, month, 0, 23, 59, 59, 999)
+      
+      const existingInTx = await tx.leaveCreditTransaction.findFirst({
+        where: {
+          leaveCredit: { employeeId },
+          type: 'MONTHLY_ACCRUAL',
+          createdAt: { gte: startOfMonth, lte: endOfMonth },
+        },
+      })
+
+      if (existingInTx) {
+        throw new Error('DUPLICATE_ACCRUAL')
+      }
+
+      // Lock and get current balance
+      const currentCredit = await tx.leaveCredit.findUnique({
+        where: { id: leaveCredit!.id },
+      })
+
+      if (!currentCredit) {
+        throw new Error('CREDIT_NOT_FOUND')
+      }
+
+      const prevBalance = currentCredit.availableDays
       const newBalance = prevBalance + MONTHLY_ACCRUAL_DAYS
 
       await tx.leaveCreditTransaction.create({
