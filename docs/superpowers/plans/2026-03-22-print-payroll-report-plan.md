@@ -128,19 +128,80 @@ npm run lint
 
 ## Additional Fixes Applied
 
-During implementation, the following pre-existing issues were fixed:
+### 1. Prepared By - User Name Not Appearing (March 22, 2026)
 
-1. **Fixed `@typescript-eslint/no-explicit-any` errors** in:
-   - `app/(dashboard)/time-logs/page.tsx`
-   - `app/api/office-location/route.ts`
-   - `app/api/time-logs/route.ts`
-   - `test_advance.ts`
+**Problem:** The Prepared By field was empty because the `userName` cookie was not being set on login.
 
-2. **Fixed type errors** in:
-   - `app/api/office-location/route.ts` - Changed exported `checkGeofence` to private
-   - `app/api/holidays/route.ts` - Added proper `HolidayType` imports
-   - `app/api/holidays/import/route.ts` - Added type assertions for compound unique keys
-   - `app/api/time-logs/route.ts` - Fixed undefined radius handling
+**Files Modified:**
+- `app/api/login/route.ts` - Added `userName` cookie with `encodeURIComponent`
+- `app/(dashboard)/layout.tsx` - Added clearing of `userName` cookie on logout
+- `app/(dashboard)/reports/print-payroll/page.tsx` - Added fallback to fetch user from `/api/current-user` API
+
+**Changes:**
+```typescript
+// In login/route.ts - Added userName cookie
+`userName=${encodeURIComponent(user.name || '')}; Path=/; Max-Age=${60 * 60 * 24}`
+
+// In layout.tsx - Added logout clearing
+document.cookie = 'userName=; path=/; expires=Thu, 01 Jan 1970 00:00:00 UTC';
+
+// In print-payroll/page.tsx - Added fallback fetch
+if (storedName) {
+  setCurrentUser({...});
+} else if (cookies.userId) {
+  fetch(`/api/current-user?userId=${cookies.userId}`)...
+}
+```
+
+---
+
+### 2. Employee Dropdown Not Working (March 22, 2026)
+
+**Problem:** The Checked By and Approved By dropdowns were empty because they were filtering by user role instead of employee position.
+
+**Files Modified:**
+- `app/(dashboard)/reports/print-payroll/page.tsx` - Changed to fetch all employees and filter client-side
+- `app/api/employees/route.ts` - Added support for filtering by position
+
+**Changes:**
+- Now fetches all employees from `/api/employees`
+- Filters employees client-side by position containing "accountant"/"finance" for Checked By
+- Filters employees client-side by position containing "manager"/"head" for Approved By
+
+---
+
+### 3. PDF Output Improvements (March 22, 2026)
+
+**Problem:** PDF output had issues with:
+- Amounts showing with "+" sign instead of proper format
+- Position and Basic Salary columns overlapping
+- Wrong paper orientation and size
+
+**Files Modified:**
+- `app/(dashboard)/reports/print-payroll/page.tsx`
+
+**Changes:**
+- **Paper:** Landscape Legal (8.5" x 14")
+- **Column widths adjusted:** Position (35mm), Basic Salary (32mm) to prevent overlap
+- **Currency format:** Uses `toFixed(2)` with comma thousand separators (e.g., `15,000.00`)
+- **Strips "+" signs:** Removes any `+` or `,` from input strings before parsing
+- **Proper number parsing:** Handles both number and string inputs
+- **Colors:** Navy blue header, red for deductions, green for net pay
+- **Certification section:** Added with signature blocks
+
+---
+
+### 4. Prepared By Field - Editable (March 22, 2026)
+
+**Problem:** Prepared By field was read-only and couldn't be manually entered.
+
+**Files Modified:**
+- `app/(dashboard)/reports/print-payroll/page.tsx`
+
+**Changes:**
+- Changed from `readOnly` to editable input
+- Added `onChange` handler to update current user name
+- Added placeholder text "Enter your name"
 
 ---
 
@@ -151,3 +212,13 @@ npm run build  # ✅ SUCCESS
 ```
 
 All type checks pass. Application builds successfully with only warnings (no errors).
+
+---
+
+## Redis Status
+
+Redis is integrated as an optional caching layer:
+
+- **Applied in:** `/api/employees`, `/api/payroll`, `/api/overtime`, `/api/leaves`, `/api/advances`
+- **Status:** Disabled when `REDIS_URL` is not set (graceful fallback)
+- **To enable:** Add `REDIS_URL=redis://localhost:6379` to `.env.local`
