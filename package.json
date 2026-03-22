@@ -12,6 +12,7 @@
     "postinstall": "prisma generate",
     "db:seed": "tsx prisma/seed.ts",
     "db:push": "prisma db push",
+    "leave-accrual": "npx ts-node scripts/run-leave-accrual.ts",
     "pages:build": "npx @cloudflare/next-on-pages"
   },
   "dependencies": {
