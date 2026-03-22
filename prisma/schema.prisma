@@ -23,6 +23,12 @@ enum Role {
   EMPLOYEE
 }
 
+/// Employee status enum for Philippine labor law compliance
+enum EmployeeStatus {
+  PROBATIONARY   // 6 months trial period
+  REGULAR        // Permanently employed
+}
+
 /// User model for authentication
 /// Links to Employee record for role-based access
 model User {
@@ -71,6 +77,9 @@ model Employee {
   endDate       DateTime?
   isActive      Boolean   @default(true)
 
+  employeeStatus    EmployeeStatus @default(PROBATIONARY)
+  regularizationDate DateTime?     // Date when probationary became regular
+
   tin           String
   sssNo         String
   philhealthNo  String
@@ -93,6 +102,7 @@ model Employee {
   overtimeRequests OvertimeRequest[] @relation("EmployeeOvertime")
   approvedOvertime OvertimeRequest[] @relation("ApproverOvertime")
   advances      Advance[]
+  leaveCredits    LeaveCredit[]
   shiftSchedules ShiftSchedule[]
 
   @@map("employees")
@@ -187,6 +197,15 @@ enum OtStatus {
   REJECTED
 }
 
+/// Leave credit ledger types
+enum LeaveCreditType {
+  MONTHLY_ACCRUAL    // Monthly accrual
+  ADJUSTMENT         // Manual adjustment by HR
+  USED               // Deducted when leave approved
+  CARRY_FORWARD      // Year-end carry over
+  EXPIRED            // Unused credits that expired
+}
+
 /// LeaveRequest model for filing and approving leaves
 model LeaveRequest {
   id           String      @id @default(auto()) @map("_id") @db.ObjectId
@@ -233,6 +252,50 @@ model OvertimeRequest {
   updatedAt    DateTime    @updatedAt
 
   @@map("overtimerequests")
+}
+
+/// LeaveCredit model for tracking employee leave balances
+model LeaveCredit {
+  id              String   @id @default(auto()) @map("_id") @db.ObjectId
+  
+  employeeId      String   @db.ObjectId
+  employee       Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  
+  leaveType       String   @default("VACATION") // VACATION, SICK
+  totalDays       Float    @default(0)         // Total accrued days
+  usedDays        Float    @default(0)         // Days already used
+  availableDays   Float    @default(0)         // Available for use
+  year            Int      // For yearly tracking
+  
+  transactions    LeaveCreditTransaction[]
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  @@unique([employeeId, leaveType, year])
+  @@index([employeeId])
+  @@map("leavecredits")
+}
+
+/// LeaveCreditTransaction model for audit trail
+model LeaveCreditTransaction {
+  id              String          @id @default(auto()) @map("_id") @db.ObjectId
+  
+  leaveCreditId   String          @db.ObjectId
+  leaveCredit     LeaveCredit     @relation(fields: [leaveCreditId], references: [id], onDelete: Cascade)
+  
+  type            LeaveCreditType
+  days            Float           // Positive for credit, negative for debit
+  balanceBefore   Float
+  balanceAfter    Float
+  
+  description     String          // e.g., "Monthly accrual for January 2026"
+  referenceId     String?         // LeaveRequest ID if type is USED
+  
+  createdAt       DateTime        @default(now())
+  
+  @@index([leaveCreditId])
+  @@map("leavecredittransactions")
 }
 
 /// HolidayType enum for Philippine labor law compliance
