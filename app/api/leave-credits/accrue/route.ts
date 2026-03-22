@@ -34,15 +34,18 @@ export async function POST(request: Request) {
       select: { id: true, fullName: true },
     })
 
-    const results = []
-    for (const emp of regularEmployees) {
+    const accrualPromises = regularEmployees.map(async (emp) => {
       const result = await calculateMonthlyAccrual(emp.id, targetYear, targetMonth)
-      results.push({
+      return {
         employeeId: emp.id,
         employeeName: emp.fullName,
-        ...result,
-      })
-    }
+        success: result.success,
+        accrued: result.accrued,
+        error: result.error,
+      }
+    })
+    
+    const results = await Promise.all(accrualPromises)
 
     const successful = results.filter(r => r.success).length
     const failed = results.filter(r => !r.success).length
