@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { LayoutDashboard, Users, DollarSign, Clock, FileText, LogOut, Menu, UserCheck, CalendarDays, Timer, Wallet, Settings, Calendar } from 'lucide-react';
+import { LayoutDashboard, Users, DollarSign, Clock, FileText, LogOut, Menu, UserCheck, CalendarDays, Timer, Wallet, Settings, Calendar, Award } from 'lucide-react';
 import { useState, useEffect } from 'react';
 
 const navItems = [
@@ -10,6 +10,7 @@ const navItems = [
   { href: '/users', label: 'Users', icon: UserCheck },
   { href: '/employees', label: 'Employees', icon: Users },
   { href: '/schedules', label: 'Shift Schedule', icon: CalendarDays },
+  { href: '/leave-credits', label: 'Leave Credits', icon: Award },
   { href: '/leaves', label: 'Leaves', icon: CalendarDays },
   { href: '/overtime', label: 'Overtime', icon: Timer },
   { href: '/payroll', label: 'Payroll', icon: DollarSign },
