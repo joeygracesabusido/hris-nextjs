@@ -1,14 +1,16 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Check, X, Users as UsersIcon, Clock, UserCheck, UserX } from 'lucide-react';
+import { Check, X, Clock, UserCheck, UserX, Shield, Briefcase, Users, UserCog } from 'lucide-react';
+
+type UserRole = 'ADMIN' | 'HR' | 'MANAGER' | 'EMPLOYEE';
 
 interface User {
   id: string;
   username: string;
   email: string;
   name: string | null;
-  role: string;
+  role: UserRole;
   status: string;
   createdAt: string;
 }
@@ -19,6 +21,8 @@ export default function UsersPage() {
   const [filter, setFilter] = useState('all');
   const [mounted, setMounted] = useState(false);
   const [userRole, setUserRole] = useState('');
+  const [editingUserId, setEditingUserId] = useState<string | null>(null);
+  const [newRole, setNewRole] = useState<UserRole>('EMPLOYEE');
 
   const fetchUsers = async () => {
     try {
@@ -64,6 +68,53 @@ export default function UsersPage() {
       console.error('Failed to update user:', error);
     }
   };
+
+  const handleRoleUpdate = async (userId: string) => {
+    try {
+      const res = await fetch('/api/users', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId, role: newRole }),
+      });
+
+      if (res.ok) {
+        setUsers(users.map(user => 
+          user.id === userId ? { ...user, role: newRole } : user
+        ));
+        setEditingUserId(null);
+      }
+    } catch (error) {
+      console.error('Failed to update role:', error);
+    }
+  };
+
+  const startEditingRole = (user: User) => {
+    setEditingUserId(user.id);
+    setNewRole(user.role);
+  };
+
+  const cancelRoleEdit = () => {
+    setEditingUserId(null);
+  };
+
+  const getRoleBadge = (role: UserRole) => {
+    const config = {
+      ADMIN: { icon: Shield, color: 'bg-purple-100 text-purple-700' },
+      HR: { icon: UserCog, color: 'bg-pink-100 text-pink-700' },
+      MANAGER: { icon: Briefcase, color: 'bg-blue-100 text-blue-700' },
+      EMPLOYEE: { icon: Users, color: 'bg-gray-100 text-gray-700' },
+    };
+
+    const { icon: Icon, color } = config[role];
+    return (
+      <span className={`flex items-center gap-1 px-2 py-1 ${color} rounded text-xs`}>
+        <Icon className="w-3 h-3" />
+        {role}
+      </span>
+    );
+  };
+
+  const canEditRoles = userRole === 'ADMIN' || userRole === 'HR';
 
   const filteredUsers = users.filter(user => {
     if (filter === 'all') return true;
@@ -213,7 +264,45 @@ export default function UsersPage() {
                   </td>
                   <td className="px-6 py-4 text-sm text-gray-600">{user.email}</td>
                   <td className="px-6 py-4">
-                    <span className="px-2 py-1 bg-gray-100 text-gray-700 rounded text-xs">{user.role}</span>
+                    {editingUserId === user.id && canEditRoles ? (
+                      <div className="flex items-center gap-2">
+                        <select
+                          value={newRole}
+                          onChange={(e) => setNewRole(e.target.value as UserRole)}
+                          className="px-2 py-1 border rounded text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        >
+                          <option value="ADMIN">Admin</option>
+                          <option value="HR">HR</option>
+                          <option value="MANAGER">Manager</option>
+                          <option value="EMPLOYEE">Employee</option>
+                        </select>
+                        <button
+                          onClick={() => handleRoleUpdate(user.id)}
+                          className="p-1 bg-green-100 text-green-600 rounded hover:bg-green-200"
+                        >
+                          <Check className="w-3 h-3" />
+                        </button>
+                        <button
+                          onClick={cancelRoleEdit}
+                          className="p-1 bg-gray-100 text-gray-600 rounded hover:bg-gray-200"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-2">
+                        {getRoleBadge(user.role)}
+                        {canEditRoles && (
+                          <button
+                            onClick={() => startEditingRole(user)}
+                            className="p-1 hover:bg-gray-100 rounded"
+                            title="Edit role"
+                          >
+                            <UserCog className="w-3 h-3 text-gray-400" />
+                          </button>
+                        )}
+                      </div>
+                    )}
                   </td>
                   <td className="px-6 py-4">{getStatusBadge(user.status)}</td>
                   <td className="px-6 py-4 text-sm text-gray-500">

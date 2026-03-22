@@ -260,7 +260,7 @@ export default function HolidaysPage() {
                   <Label htmlFor="type">Type</Label>
                   <Select
                     value={newHoliday.type}
-                    onValueChange={(value) => setNewHoliday(prev => ({ ...prev, type: value as any }))}
+                    onValueChange={(value: 'REGULAR' | 'SPECIAL' | 'SPECIAL_NON_WORK') => setNewHoliday(prev => ({ ...prev, type: value }))}
                   >
                     <SelectTrigger>
                       <SelectValue />
@@ -271,6 +271,8 @@ export default function HolidaysPage() {
                       <SelectItem value="SPECIAL_NON_WORK">Special Non-Working</SelectItem>
                     </SelectContent>
                   </Select>
+                </div>
+                <div className="flex items-end">
                 </div>
                 <div className="flex items-end">
                   <Button onClick={handleCreateHoliday} className="gap-2 w-full">
@@ -342,7 +344,7 @@ export default function HolidaysPage() {
                             />
                             <Select
                               value={newHoliday.type}
-                              onValueChange={(value) => setNewHoliday(prev => ({ ...prev, type: value as any }))}
+                              onValueChange={(value: 'REGULAR' | 'SPECIAL' | 'SPECIAL_NON_WORK') => setNewHoliday(prev => ({ ...prev, type: value }))}
                             >
                               <SelectTrigger>
                                 <SelectValue />

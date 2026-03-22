@@ -45,6 +45,8 @@ export async function POST(request: Request) {
       for (const holidayData of holidays) {
         const dateObj = new Date(holidayData.date)
 
+        const holidayType = holidayData.type as 'REGULAR' | 'SPECIAL' | 'SPECIAL_NON_WORK'
+
         if (overwrite) {
           await prisma.holiday.upsert({
             where: {
@@ -55,14 +57,14 @@ export async function POST(request: Request) {
             },
             update: {
               name: holidayData.name,
-              type: holidayData.type as any,
+              type: holidayType,
               year: yearNum,
             },
             create: {
               name: holidayData.name,
               date: dateObj,
               year: yearNum,
-              type: holidayData.type as any,
+              type: holidayType,
               branchId: null,
               isActive: true,
             },
@@ -84,7 +86,7 @@ export async function POST(request: Request) {
                 name: holidayData.name,
                 date: dateObj,
                 year: yearNum,
-                type: holidayData.type as any,
+                type: holidayType,
                 branchId: null,
                 isActive: true,
               },

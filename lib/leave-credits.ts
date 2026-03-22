@@ -1,7 +1,6 @@
 import prisma from '@/lib/prisma'
 
 const MONTHLY_ACCRUAL_DAYS = 1.25
-const MAX_CARRY_OVER_DAYS = 15
 
 export interface AccrualResult {
   success: boolean
@@ -40,7 +39,6 @@ export async function calculateMonthlyAccrual(
 
     const accrualStartDate = employee.regularizationDate || employee.hireDate
     
-    const firstMonthEnd = new Date(year, month, 0)
     const firstMonthStart = new Date(year, month - 1, 1)
     
     if (accrualStartDate > firstMonthStart) {
@@ -87,7 +85,7 @@ export async function calculateMonthlyAccrual(
       })
     }
 
-    const result = await prisma.$transaction(async (tx) => {
+    await prisma.$transaction(async (tx) => {
       // Re-check for duplicate within transaction to prevent race condition
       const startOfMonth = new Date(year, month - 1, 1)
       const endOfMonth = new Date(year, month, 0, 23, 59, 59, 999)
@@ -153,8 +151,8 @@ export async function getLeaveBalance(
     where: { employeeId, year },
   })
 
-  const vacation = credits.find(c => c.leaveType === 'VACATION')?.availableDays || 0
-  const sick = credits.find(c => c.leaveType === 'SICK')?.availableDays || 0
+  const vacation = credits.find((c: { leaveType: string; availableDays: number }) => c.leaveType === 'VACATION')?.availableDays || 0
+  const sick = credits.find((c: { leaveType: string; availableDays: number }) => c.leaveType === 'SICK')?.availableDays || 0
 
   return { vacation, sick }
 }

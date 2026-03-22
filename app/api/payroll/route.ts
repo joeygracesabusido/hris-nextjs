@@ -19,12 +19,21 @@ function calculateSemiMonthlySalary(monthlySalary: number, frequency: string): n
   return monthlySalary;
 }
 
-function countWorkingDays(start: Date, end: Date): number {
+function countWorkingDays(
+  start: Date,
+  end: Date,
+  holidays: { isActive: boolean; date: Date }[] = []
+): number {
   let count = 0;
   const cur = new Date(start);
+  const holidayDates = holidays
+    .filter((h) => h.isActive)
+    .map((h) => new Date(h.date).toLocaleDateString());
+
   while (cur <= end) {
     const day = cur.getDay();
-    if (day !== 0 && day !== 6) { // Not Sunday or Saturday
+    const dateStr = cur.toLocaleDateString();
+    if (day !== 0 && day !== 6 && !holidayDates.includes(dateStr)) {
       count++;
     }
     cur.setDate(cur.getDate() + 1);
@@ -57,12 +66,24 @@ export async function POST(request: Request) {
     const includePhilHealth = deductions.includes('philhealth');
     const includePagIBIG = deductions.includes('pagibig');
     const includeTax = deductions.includes('tax');
-    
+
     // Map frontend IDs to DB types
     const selectedAdvanceTypes = [];
     if (deductions.includes('cash_advance')) selectedAdvanceTypes.push('CASH_ADVANCE');
     if (deductions.includes('sss_loan')) selectedAdvanceTypes.push('SSS_LOAN');
     if (deductions.includes('pagibig_loan')) selectedAdvanceTypes.push('PAGIBIG_LOAN');
+
+    // Fetch holidays for the period
+    const holidays = await prisma.holiday.findMany({
+      where: {
+        isActive: true,
+        branchId: null,
+        date: {
+          gte: startDate,
+          lte: endDate,
+        },
+      },
+    });
 
     if (employeeId === 'all') {
       const employees = await prisma.employee.findMany();
@@ -147,7 +168,7 @@ export async function POST(request: Request) {
           
           const leaveDays = leaves.reduce((sum, leave) => sum + leave.daysCount, 0);
           
-          const workDaysInPeriod = countWorkingDays(startDate, endDate);
+          const workDaysInPeriod = countWorkingDays(startDate, endDate, holidays);
           const expectedWorkDays = Math.max(0, workDaysInPeriod - leaveDays - offDaysInPeriod);
           
           const daysWithTimeLog = timeLogs.filter(log => log.clockIn !== null).length;
@@ -371,7 +392,7 @@ export async function POST(request: Request) {
 
     const leaveDays = leaves.reduce((sum, leave) => sum + leave.daysCount, 0);
 
-    const workDaysInPeriod = countWorkingDays(startDate, endDate);
+    const workDaysInPeriod = countWorkingDays(startDate, endDate, holidays);
     const expectedWorkDays = Math.max(0, workDaysInPeriod - leaveDays - offDaysInPeriod);
 
     const daysWithTimeLog = timeLogs.filter(log => log.clockIn !== null).length;

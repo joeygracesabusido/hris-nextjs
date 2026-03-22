@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { Clock, Play, Square, Upload, Download, FileSpreadsheet, LogOut, Search, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { Clock, Play, Square, Upload, Download, FileSpreadsheet, LogOut, Search, AlertCircle, CheckCircle2, MapPin, NavigationOff } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -58,6 +58,11 @@ export default function TimeLogsPage() {
   const [importResult, setImportResult] = useState<{ success: number; failed: number; errors: string[] } | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [userLocation, setUserLocation] = useState<{ lat: number; lon: number } | null>(null);
+  const [distance, setDistance] = useState<number | null>(null);
+  const [officeLocation, setOfficeLocation] = useState<{ name: string; lat: number; lon: number; radius: number } | null>(null);
+  const [gpsError, setGpsError] = useState<string | null>(null);
+  const [withinRange, setWithinRange] = useState(false);
 
   useEffect(() => {
     const getCookies = () => {
@@ -85,6 +90,8 @@ export default function TimeLogsPage() {
     setUserId(id || '');
     fetchEmployees();
     fetchTimeLogs();
+    fetchOfficeLocation();
+    getUserLocation();
   }, []);
 
   useEffect(() => {
@@ -116,6 +123,80 @@ export default function TimeLogsPage() {
     }
   };
 
+  const fetchOfficeLocation = async () => {
+    try {
+      const res = await fetch('/api/office-location');
+      if (res.ok) {
+        const locations = await res.json();
+        const activeLocation = locations.find((loc: any) => loc.isActive);
+        if (activeLocation) {
+          setOfficeLocation({
+            name: activeLocation.name,
+            lat: activeLocation.latitude,
+            lon: activeLocation.longitude,
+            radius: activeLocation.radius,
+          });
+        }
+      }
+    } catch (err) {
+      console.error('Failed to fetch office location:', err);
+    }
+  };
+
+  const getUserLocation = () => {
+    if (!navigator.geolocation) {
+      setGpsError('Geolocation is not supported by your browser');
+      return;
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const { latitude, longitude } = position.coords;
+        setUserLocation({ lat: latitude, lon: longitude });
+        setGpsError(null);
+      },
+      (error) => {
+        console.error('Geolocation error:', error);
+        setGpsError('Unable to access your location. Please enable location services.');
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 10000,
+        maximumAge: 30000,
+      }
+    );
+  };
+
+  // Calculate distance using Haversine formula
+  const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number): number => {
+    const R = 6371e3; // Earth's radius in meters
+    const φ1 = (lat1 * Math.PI) / 180;
+    const φ2 = (lat2 * Math.PI) / 180;
+    const Δφ = ((lat2 - lat1) * Math.PI) / 180;
+    const Δλ = ((lon2 - lon1) * Math.PI) / 180;
+
+    const a =
+      Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
+      Math.cos(φ1) * Math.cos(φ2) *
+      Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+
+    return R * c; // Distance in meters
+  };
+
+  useEffect(() => {
+    if (userLocation && officeLocation) {
+      const dist = calculateDistance(
+        userLocation.lat,
+        userLocation.lon,
+        officeLocation.lat,
+        officeLocation.lon
+      );
+      setDistance(dist);
+      setWithinRange(dist <= officeLocation.radius);
+    }
+  }, [userLocation, officeLocation]);
+
   const fetchEmployees = async () => {
     try {
       const res = await fetch('/api/employees');
@@ -135,12 +216,28 @@ export default function TimeLogsPage() {
       return;
     }
 
+    if (!userLocation) {
+      alert('Please enable location services to clock in');
+      getUserLocation();
+      return;
+    }
+
+    if (!withinRange && officeLocation) {
+      alert(`You must be within ${officeLocation.radius} meters of ${officeLocation.name} to clock in.\nCurrent distance: ${Math.round(distance || 0)} meters`);
+      return;
+    }
+
     setClockingIn(true);
     try {
       const res = await fetch('/api/time-logs', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ employeeId, type: 'clockIn' }),
+        body: JSON.stringify({ 
+          employeeId, 
+          type: 'clockIn',
+          latitude: userLocation.lat,
+          longitude: userLocation.lon,
+        }),
       });
 
       const data = await res.json();
@@ -165,12 +262,28 @@ export default function TimeLogsPage() {
       return;
     }
 
+    if (!userLocation) {
+      alert('Please enable location services to clock out');
+      getUserLocation();
+      return;
+    }
+
+    if (!withinRange && officeLocation) {
+      alert(`You must be within ${officeLocation.radius} meters of ${officeLocation.name} to clock out.\nCurrent distance: ${Math.round(distance || 0)} meters`);
+      return;
+    }
+
     setClockingIn(true);
     try {
       const res = await fetch('/api/time-logs', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ employeeId, type: 'clockOut' }),
+        body: JSON.stringify({ 
+          employeeId, 
+          type: 'clockOut',
+          latitude: userLocation.lat,
+          longitude: userLocation.lon,
+        }),
       });
 
       const data = await res.json();
@@ -242,8 +355,8 @@ export default function TimeLogsPage() {
     }
   };
 
-  const canClockIn = !todayLog || !todayLog.clockIn;
-  const canClockOut = todayLog && todayLog.clockIn && !todayLog.clockOut;
+  const canClockIn = (!todayLog || !todayLog.clockIn) && withinRange && userLocation;
+  const canClockOut = (todayLog && todayLog.clockIn && !todayLog.clockOut) && withinRange && userLocation;
 
   const downloadTemplate = async () => {
     try {
@@ -501,6 +614,39 @@ export default function TimeLogsPage() {
               })}
             </p>
           </div>
+
+          {/* GPS Status */}
+          {officeLocation && (
+            <div className={`w-full max-w-md rounded-lg p-4 border-2 ${
+              withinRange 
+                ? 'bg-green-50 border-green-200' 
+                : gpsError
+                  ? 'bg-red-50 border-red-200'
+                  : 'bg-yellow-50 border-yellow-200'
+            }`}>
+              <div className="flex items-center gap-3">
+                {withinRange ? (
+                  <CheckCircle2 className="w-8 h-8 text-green-600" />
+                ) : (
+                  <NavigationOff className="w-8 h-8 text-red-600" />
+                )}
+                <div className="flex-1">
+                  <p className="font-semibold text-gray-900">
+                    {withinRange ? 'Within Clock-In Range' : 'Outside Clock-In Range'}
+                  </p>
+                  <p className="text-sm text-gray-600">
+                    {gpsError ? (
+                      <span className="text-red-600">{gpsError}</span>
+                    ) : distance !== null ? (
+                      `Distance: ${Math.round(distance)}m from ${officeLocation.name} (Required: ${officeLocation.radius}m)`
+                    ) : (
+                      'Getting location...'
+                    )}
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Employee Selector */}
           <div className="w-full max-w-md">

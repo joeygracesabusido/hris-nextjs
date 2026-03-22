@@ -3,6 +3,60 @@ import prisma from '@/lib/prisma';
 import { startOfDay, endOfDay } from 'date-fns';
 import { cookies } from 'next/headers';
 
+// Haversine formula to calculate distance between two GPS coordinates
+function calculateDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
+  const R = 6371e3; // Earth's radius in meters
+  const φ1 = (lat1 * Math.PI) / 180;
+  const φ2 = (lat2 * Math.PI) / 180;
+  const Δφ = ((lat2 - lat1) * Math.PI) / 180;
+  const Δλ = ((lon2 - lon1) * Math.PI) / 180;
+
+  const a =
+    Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
+    Math.cos(φ1) * Math.cos(φ2) *
+    Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+
+  return R * c; // Distance in meters
+}
+
+// Get active office location
+async function getActiveOfficeLocation() {
+  try {
+    const location = await (prisma as any).officeLocation.findFirst({
+      where: { isActive: true },
+      orderBy: { createdAt: 'desc' },
+    });
+    return location;
+  } catch (error) {
+    console.error('Error fetching office location:', error);
+    return null;
+  }
+}
+
+// Validate GPS location against office geofence
+async function validateGPS(latitude: number, longitude: number) {
+  const officeLocation = await getActiveOfficeLocation();
+  
+  // If no office location is set, allow by default
+  if (!officeLocation) {
+    return { valid: true, distance: 0 };
+  }
+
+  const distance = calculateDistance(
+    latitude,
+    longitude,
+    officeLocation.latitude,
+    officeLocation.longitude
+  );
+
+  return {
+    valid: distance <= officeLocation.radius,
+    distance,
+    radius: officeLocation.radius,
+  };
+}
+
 export async function GET(request: Request) {
   try {
     const cookieStore = await cookies();
@@ -46,8 +100,18 @@ export async function GET(request: Request) {
     });
     const employeeMap = new Map(employees.map(emp => [emp.id, emp]));
 
+    // Fetch all active holidays
+    const holidays = await prisma.holiday.findMany({
+      where: { isActive: true, branchId: null },
+    })
+    const holidayMap = new Map(
+      holidays.map(h => [new Date(h.date).toLocaleDateString(), h])
+    );
+
     const formattedLogs = await Promise.all(timeLogs.map(async (log) => {
       const emp = employeeMap.get(log.employeeId);
+      const logDateStr = new Date(log.date).toLocaleDateString();
+      const holiday = holidayMap.get(logDateStr) || null;
       
       const schedule = await prisma.shiftSchedule.findFirst({
         where: {
@@ -65,6 +129,7 @@ export async function GET(request: Request) {
       return {
         ...log,
         shift: schedule?.shift || null,
+        holiday,
         employee: emp ? {
           fullName: emp.fullName,
           employeeId: emp.employeeId,
@@ -85,10 +150,41 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { employeeId, type } = body;
+    const { employeeId, type, latitude, longitude } = body;
 
     if (!employeeId || !type) {
       return NextResponse.json({ error: 'Employee ID and type are required' }, { status: 400 });
+    }
+
+    // Validate GPS location if provided
+    let gpsValid = true;
+    let gpsDistance = 0;
+    let gpsRadius = 0;
+    
+    if (latitude !== undefined && longitude !== undefined) {
+      const gpsResult = await validateGPS(latitude, longitude);
+      gpsValid = gpsResult.valid;
+      gpsDistance = gpsResult.distance;
+      gpsRadius = gpsResult.radius;
+    } else {
+      // If no GPS provided, check if office location is configured
+      const officeLocation = await getActiveOfficeLocation();
+      if (officeLocation) {
+        return NextResponse.json(
+          { error: 'GPS location is required. Please enable location services.' },
+          { status: 400 }
+        );
+      }
+    }
+
+    // Reject if outside geofence
+    if (!gpsValid) {
+      return NextResponse.json(
+        { 
+          error: `You must be within ${gpsRadius} meters of the office to ${type}. Current distance: ${Math.round(gpsDistance)} meters` 
+        },
+        { status: 403 }
+      );
     }
 
     const now = new Date();
@@ -131,7 +227,12 @@ export async function POST(request: Request) {
       if (existingLog) {
         await prisma.timeLog.update({
           where: { id: existingLog.id },
-          data: { clockIn: now, lateMinutes },
+          data: { 
+            clockIn: now, 
+            lateMinutes,
+            clockInLatitude: latitude,
+            clockInLongitude: longitude,
+          },
         });
       } else {
         await prisma.timeLog.create({
@@ -140,6 +241,8 @@ export async function POST(request: Request) {
             date: now,
             clockIn: now,
             lateMinutes,
+            clockInLatitude: latitude,
+            clockInLongitude: longitude,
           },
         });
       }
@@ -162,6 +265,8 @@ export async function POST(request: Request) {
         data: {
           clockOut: now,
           workHours: Math.round(hoursWorked * 100) / 100,
+          clockOutLatitude: latitude,
+          clockOutLongitude: longitude,
         },
       });
 

@@ -297,3 +297,142 @@ export function computePayslip(
 export function formatCurrency(amount: number): string {
   return new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP' }).format(amount)
 }
+
+// ============================================================================
+// HOLIDAY PAY CALCULATIONS (Philippine Labor Law)
+// ============================================================================
+
+export type HolidayType = 'REGULAR' | 'SPECIAL' | 'SPECIAL_NON_WORKING'
+
+export interface Holiday {
+  id: string
+  name: string
+  date: Date
+  type: HolidayType
+  isActive: boolean
+}
+
+/**
+ * Get holiday pay multiplier based on holiday type and whether employee works
+ * Per Philippine Labor Law (DOLE)
+ */
+export function getHolidayPayMultiplier(
+  holidayType: HolidayType,
+  isWorking: boolean
+): number {
+  if (!isWorking) {
+    // No work, no pay rules
+    switch (holidayType) {
+      case 'REGULAR':
+        return 1.0 // 100% - paid even if no work (Holiday Pay Law)
+      case 'SPECIAL':
+        return 1.0 // 100% - paid even if no work
+      case 'SPECIAL_NON_WORKING':
+        return 0 // No pay if no work
+      default:
+        return 0
+    }
+  }
+
+  // Working on holiday
+  switch (holidayType) {
+    case 'REGULAR':
+      return 2.0 // 200% for first 8 hours
+    case 'SPECIAL':
+      return 1.5 // 150% for first 8 hours
+    case 'SPECIAL_NON_WORKING':
+      return 1.0 // Normal pay
+    default:
+      return 1.0
+  }
+}
+
+/**
+ * Get overtime pay multiplier on holidays
+ * Per Philippine Labor Law (DOLE)
+ */
+export function getHolidayOTMultiplier(
+  holidayType: HolidayType,
+  otHourNumber: number // 1-8 for first 8 hours, 9+ for excess
+): number {
+  switch (holidayType) {
+    case 'REGULAR':
+      // Regular Holiday OT: 30% premium over 200% rate
+      if (otHourNumber <= 8) {
+        return 2.0 * 1.30 // 260% (200% + 30% of 200%)
+      }
+      return 2.0 * 1.625 // 325% for excess over 8 hours
+    
+    case 'SPECIAL':
+      // Special Day OT: 30% premium over 150% rate
+      if (otHourNumber <= 8) {
+        return 1.5 * 1.30 // 195% (150% + 30% of 150%)
+      }
+      return 1.5 * 1.625 // 243.75% for excess over 8 hours
+    
+    case 'SPECIAL_NON_WORKING':
+      // Special Non-Working: normal OT rate (25% premium)
+      return 1.25
+    
+    default:
+      return 1.25 // Normal OT rate
+  }
+}
+
+/**
+ * Calculate holiday pay for a given number of hours worked on a holiday
+ */
+export function calculateHolidayPay(
+  hourlyRate: number,
+  hoursWorked: number,
+  holidayType: HolidayType
+): number {
+  if (hoursWorked <= 0) return 0
+
+  const multiplier = getHolidayPayMultiplier(holidayType, true)
+  const pay = hourlyRate * multiplier * Math.min(hoursWorked, 8)
+  
+  // Add OT pay for hours beyond 8
+  let otPay = 0
+  if (hoursWorked > 8) {
+    const otHours = hoursWorked - 8
+    for (let i = 1; i <= otHours; i++) {
+      const otMultiplier = getHolidayOTMultiplier(holidayType, 8 + i)
+      otPay += hourlyRate * otMultiplier
+    }
+  }
+
+  return Math.round((pay + otPay) * 100) / 100
+}
+
+/**
+ * Check if a date falls on a holiday
+ */
+export function isHoliday(date: Date, holidays: Holiday[]): Holiday | null {
+  const dateStr = date.toLocaleDateString()
+  
+  return holidays.find(h => {
+    const holidayDateStr = new Date(h.date).toLocaleDateString()
+    return h.isActive && holidayDateStr === dateStr
+  }) || null
+}
+
+/**
+ * Count total holiday pay for a period
+ */
+export function calculateTotalHolidayPay(
+  hourlyRate: number,
+  holidayWorkRecords: Array<{ date: Date; hoursWorked: number }>,
+  holidays: Holiday[]
+): number {
+  let totalPay = 0
+
+  for (const record of holidayWorkRecords) {
+    const holiday = isHoliday(record.date, holidays)
+    if (holiday && record.hoursWorked > 0) {
+      totalPay += calculateHolidayPay(hourlyRate, record.hoursWorked, holiday.type)
+    }
+  }
+
+  return Math.round(totalPay * 100) / 100
+}

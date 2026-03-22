@@ -23,6 +23,7 @@ export async function POST(request: Request) {
     const {
       fullName, email, position, department, basicSalary, dailyRate, payType,
       payrollFrequency, managerId, hireDate, tin, sssNo, philhealthNo, pagibigNo, bankName, bankAccountNo,
+      employeeStatus, regularizationDate,
     } = body;
 
     const maxEmployee = await prisma.employee.findFirst({ 
@@ -48,6 +49,8 @@ export async function POST(request: Request) {
         tin: tin || '', sssNo: sssNo || '', philhealthNo: philhealthNo || '', pagibigNo: pagibigNo || '',
         bankName: bankName || '', bankAccountNo: bankAccountNo || '',
         isActive: true,
+        employeeStatus: employeeStatus || 'PROBATIONARY',
+        regularizationDate: regularizationDate ? new Date(regularizationDate) : null,
       },
     });
 
@@ -69,16 +72,21 @@ export async function PUT(request: Request) {
     const updateData: Record<string, unknown> = {};
     const allowedFields = [
       'fullName', 'email', 'position', 'department', 'basicSalary', 'dailyRate', 'payType',
-      'payrollFrequency', 'managerId', 'hireDate', 'tin', 'sssNo', 'philhealthNo', 
-      'pagibigNo', 'bankName', 'bankAccountNo', 'isActive'
+      'payrollFrequency', 'managerId', 'hireDate', 'tin', 'sssNo', 'philhealthNo',
+      'pagibigNo', 'bankName', 'bankAccountNo', 'isActive', 'employeeStatus', 'regularizationDate'
     ];
 
     allowedFields.forEach(field => {
       if (body[field] !== undefined) {
         if (field === 'basicSalary' || field === 'dailyRate') {
           updateData[field] = parseFloat(String(body[field]));
-        } else if (field === 'hireDate') {
-          updateData[field] = new Date(body[field]);
+        } else if (field === 'hireDate' || field === 'regularizationDate') {
+          const dateValue = body[field];
+          if (dateValue && dateValue !== '') {
+            updateData[field] = new Date(dateValue);
+          } else {
+            updateData[field] = null;
+          }
         } else {
           updateData[field] = body[field];
         }

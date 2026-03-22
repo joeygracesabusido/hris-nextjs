@@ -26,7 +26,12 @@ export async function GET(request: Request) {
     const branchId = searchParams.get('branchId')
     const isActive = searchParams.get('isActive')
 
-    const where: any = {}
+    const where: {
+      year?: number
+      type?: string
+      branchId?: string | null
+      isActive?: boolean
+    } = {}
 
     if (year) {
       where.year = parseInt(year)
@@ -92,16 +97,17 @@ export async function POST(request: Request) {
         name,
         date: dateObj,
         year,
-        type: type as any,
+        type,
         branchId: branchId || null,
         isActive,
       },
     })
 
     return NextResponse.json(holiday, { status: 201 })
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Error creating holiday:', error)
-    if (error?.code === 'P2002') {
+    const err = error as { code?: string }
+    if (err?.code === 'P2002') {
       return NextResponse.json(
         { error: 'Holiday already exists for this date' },
         { status: 409 }
@@ -137,10 +143,14 @@ export async function PATCH(request: Request) {
     }
 
     const { id, name, type, isActive } = result.data
-    const updateData: any = {}
+    const updateData: {
+      name?: string
+      type?: string
+      isActive?: boolean
+    } = {}
 
     if (name !== undefined) updateData.name = name
-    if (type !== undefined) updateData.type = type as any
+    if (type !== undefined) updateData.type = type
     if (isActive !== undefined) updateData.isActive = isActive
 
     const holiday = await prisma.holiday.update({

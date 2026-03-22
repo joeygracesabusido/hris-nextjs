@@ -135,6 +135,16 @@ After setup, verify:
 
 ## Troubleshooting
 
+### "Property does not exist" LSP/TypeScript errors
+
+Prisma Client types are stale. This is a common issue in Next.js dev mode:
+
+1. Stop the development server
+2. Run `npx prisma generate`
+3. Restart the dev server
+
+The application will work correctly even if LSP shows errors (verify with `npm run build`).
+
 ### "Property does not exist" errors
 
 Prisma Client is out of date. Run:
@@ -176,7 +186,6 @@ Located in `lib/leave-credits.ts`:
 
 ```typescript
 const MONTHLY_ACCRUAL_DAYS = 1.25 // 15 days / 12 months
-const MAX_CARRY_OVER_DAYS = 15    // Max days to carry over per year
 ```
 
 ### Adjusting Accrual Rate

@@ -4,7 +4,7 @@
 
 ### Viewing Your Leave Balance
 
-1. Navigate to **Leave Management** in the sidebar
+1. Navigate to **Leave Credits** in the sidebar (before "Leaves")
 2. Your available vacation and sick leave balances are displayed at the top
 3. When filing a leave request, your current balance is shown in the form
 

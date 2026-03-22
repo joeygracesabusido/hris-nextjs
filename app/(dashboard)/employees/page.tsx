@@ -20,6 +20,8 @@ interface Employee {
   payrollFrequency: string;
   hireDate: string;
   isActive: boolean;
+  employeeStatus: string;
+  regularizationDate?: string;
   managerId?: string;
   tin: string;
   sssNo: string;
@@ -63,6 +65,8 @@ export default function EmployeesPage() {
     pagibigNo: '',
     bankName: '',
     bankAccountNo: '',
+    employeeStatus: 'PROBATIONARY',
+    regularizationDate: '',
   });
 
   useEffect(() => {
@@ -89,8 +93,13 @@ export default function EmployeesPage() {
     try {
       const res = await fetch('/api/employees');
       const data = await res.json();
+      console.log('API Response status:', res.status);
+      console.log('API Response data type:', typeof data, Array.isArray(data));
+      console.log('API Response data:', data);
       if (Array.isArray(data)) {
         setEmployees(data);
+      } else {
+        console.error('API returned error:', data);
       }
     } catch (err) {
       console.error('Failed to fetch employees:', err);
@@ -145,6 +154,7 @@ export default function EmployeesPage() {
       payrollFrequency: 'MONTHLY', managerId: '', hireDate: '',
       tin: '', sssNo: '', philhealthNo: '', pagibigNo: '',
       bankName: '', bankAccountNo: '',
+      employeeStatus: 'PROBATIONARY', regularizationDate: '',
     });
   };
 
@@ -167,6 +177,8 @@ export default function EmployeesPage() {
       pagibigNo: employee.pagibigNo || '',
       bankName: employee.bankName || '',
       bankAccountNo: employee.bankAccountNo || '',
+      employeeStatus: employee.employeeStatus || 'PROBATIONARY',
+      regularizationDate: employee.regularizationDate ? employee.regularizationDate.split('T')[0] : '',
     });
     setShowModal(true);
   };
@@ -266,11 +278,20 @@ export default function EmployeesPage() {
                   </td>
                   <td className="px-6 py-4 text-sm font-medium text-gray-600">{employee.department}</td>
                   <td className="px-6 py-4">
-                    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
-                      employee.isActive ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'
-                    }`}>
-                      {employee.isActive ? 'Active' : 'Inactive'}
-                    </span>
+                    <div className="flex flex-col gap-1">
+                      <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium w-fit ${
+                        employee.employeeStatus === 'REGULAR' ? 'bg-blue-100 text-blue-700' :
+                        employee.employeeStatus === 'PROBATIONARY' ? 'bg-amber-100 text-amber-700' :
+                        'bg-gray-100 text-gray-600'
+                      }`}>
+                        {employee.employeeStatus || 'PROBATIONARY'}
+                      </span>
+                      <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium w-fit ${
+                        employee.isActive ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'
+                      }`}>
+                        {employee.isActive ? 'Active' : 'Inactive'}
+                      </span>
+                    </div>
                   </td>
                   {isAdmin && (
                     <td className="px-6 py-4">
@@ -322,6 +343,21 @@ export default function EmployeesPage() {
                       <option value="">Select Department</option>
                       {departments.map(d => <option key={d} value={d}>{d}</option>)}
                     </select>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-bold uppercase text-gray-500">Employment Status</Label>
+                    <select name="employeeStatus" value={formData.employeeStatus} onChange={handleChange} className="w-full h-11 px-3 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white">
+                      <option value="PROBATIONARY">Probationary</option>
+                      <option value="REGULAR">Regular</option>
+                      <option value="RESIGNED">Resigned</option>
+                      <option value="TERMINATED">Terminated</option>
+                      <option value="ONDESIGN">On Designation</option>
+                    </select>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-bold uppercase text-gray-500">Regularization Date</Label>
+                    <Input type="date" name="regularizationDate" value={formData.regularizationDate} onChange={handleChange} className="h-11" />
+                    <p className="text-xs text-gray-400">Required when status is Regular</p>
                   </div>
                 </div>
               </section>
