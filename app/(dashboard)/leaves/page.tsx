@@ -34,6 +34,20 @@ export default function LeavesPage() {
     adminNotes: '',
   });
 
+  const [leaveBalance, setLeaveBalance] = useState({ vacation: 0, sick: 0 });
+
+  const fetchLeaveBalance = async () => {
+    try {
+      const res = await fetch('/api/leave-credits/balance', { credentials: 'include' });
+      const data = await res.json();
+      if (data.vacation !== undefined) {
+        setLeaveBalance({ vacation: data.vacation, sick: data.sick });
+      }
+    } catch (err) {
+      console.error('Failed to fetch leave balance:', err);
+    }
+  };
+
   useEffect(() => {
     if (typeof document === 'undefined') return;
     const getCookies = () => {
@@ -59,6 +73,12 @@ export default function LeavesPage() {
     fetchEmployees();
     fetchCurrentUser(id);
   }, []);
+
+  useEffect(() => {
+    if (showModal) {
+      fetchLeaveBalance();
+    }
+  }, [showModal]);
 
   const fetchCurrentUser = async (uid: string) => {
     try {
@@ -351,6 +371,20 @@ export default function LeavesPage() {
             <form onSubmit={handleApply} className="p-6 space-y-4">
               {error && <div className="p-3 bg-red-50 border border-red-200 text-red-700 rounded-lg text-sm">{error}</div>}
               
+              <div className="mb-4 p-3 bg-gray-50 rounded-lg">
+                <p className="text-sm font-medium text-gray-700 mb-2">Available Balance</p>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-xs text-gray-500">Vacation</p>
+                    <p className="text-lg font-bold text-green-600">{leaveBalance.vacation.toFixed(2)} days</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-500">Sick</p>
+                    <p className="text-lg font-bold text-orange-600">{leaveBalance.sick.toFixed(2)} days</p>
+                  </div>
+                </div>
+              </div>
+
               {/* Employee Selection - Show for Admins */}
               {(isAdmin) && (
                 <div className="relative mb-6">
