@@ -23,7 +23,7 @@ function calculateDistance(lat1: number, lon1: number, lat2: number, lon2: numbe
 // Get active office location
 async function getActiveOfficeLocation() {
   try {
-    const location = await (prisma as any).officeLocation.findFirst({
+    const location = await prisma.officeLocation.findFirst({
       where: { isActive: true },
       orderBy: { createdAt: 'desc' },
     });
@@ -165,7 +165,7 @@ export async function POST(request: Request) {
       const gpsResult = await validateGPS(latitude, longitude);
       gpsValid = gpsResult.valid;
       gpsDistance = gpsResult.distance;
-      gpsRadius = gpsResult.radius;
+      gpsRadius = gpsResult.radius ?? 0;
     } else {
       // If no GPS provided, check if office location is configured
       const officeLocation = await getActiveOfficeLocation();

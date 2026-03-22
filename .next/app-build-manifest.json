@@ -1,14 +1,9 @@
 {
   "pages": {
-    "/(dashboard)/employees/page": [
+    "/page": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
-      "static/chunks/app/(dashboard)/employees/page.js"
-    ],
-    "/(dashboard)/layout": [
-      "static/chunks/webpack.js",
-      "static/chunks/main-app.js",
-      "static/chunks/app/(dashboard)/layout.js"
+      "static/chunks/app/page.js"
     ],
     "/layout": [
       "static/chunks/webpack.js",
@@ -16,30 +11,30 @@
       "static/css/app/layout.css",
       "static/chunks/app/layout.js"
     ],
-    "/(dashboard)/schedules/page": [
+    "/(auth)/login/page": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
-      "static/chunks/app/(dashboard)/schedules/page.js"
+      "static/chunks/app/(auth)/login/page.js"
     ],
-    "/(dashboard)/leave-credits/page": [
+    "/(auth)/layout": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
-      "static/chunks/app/(dashboard)/leave-credits/page.js"
+      "static/chunks/app/(auth)/layout.js"
     ],
-    "/(dashboard)/leaves/page": [
+    "/(dashboard)/dashboard/page": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
-      "static/chunks/app/(dashboard)/leaves/page.js"
+      "static/chunks/app/(dashboard)/dashboard/page.js"
     ],
-    "/(dashboard)/overtime/page": [
+    "/(dashboard)/layout": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
-      "static/chunks/app/(dashboard)/overtime/page.js"
+      "static/chunks/app/(dashboard)/layout.js"
     ],
-    "/(dashboard)/time-logs/page": [
+    "/(dashboard)/reports/print-payroll/page": [
       "static/chunks/webpack.js",
       "static/chunks/main-app.js",
-      "static/chunks/app/(dashboard)/time-logs/page.js"
+      "static/chunks/app/(dashboard)/reports/print-payroll/page.js"
     ]
   }
 }

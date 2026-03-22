@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { LayoutDashboard, Users, DollarSign, Clock, FileText, LogOut, Menu, UserCheck, CalendarDays, Timer, Wallet, Settings, Calendar, Award } from 'lucide-react';
+import { LayoutDashboard, Users, DollarSign, Clock, FileText, LogOut, Menu, UserCheck, CalendarDays, Timer, Wallet, Settings, Calendar, Award, ChevronDown, Printer } from 'lucide-react';
 import { useState, useEffect } from 'react';
 
 const navItems = [
@@ -17,7 +17,15 @@ const navItems = [
   { href: '/payroll/advances', label: 'Advances', icon: Wallet },
   { href: '/time-logs', label: 'Time Logs', icon: Clock },
   { href: '/holidays', label: 'Holidays', icon: Calendar, adminOnly: true },
-  { href: '/reports', label: 'Reports', icon: FileText },
+  {
+    href: '/reports',
+    label: 'Reports',
+    icon: FileText,
+    adminOnly: true,
+    subItems: [
+      { href: '/reports/print-payroll', label: 'Print Payroll', icon: Printer },
+    ],
+  },
   { href: '/settings', label: 'Settings', icon: Settings, adminOnly: true },
 ];
 
@@ -28,6 +36,7 @@ export default function DashboardLayout({
 }) {
   const pathname = usePathname();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [reportsOpen, setReportsOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
   const [userRole, setUserRole] = useState('');
 
@@ -61,6 +70,7 @@ export default function DashboardLayout({
     document.cookie = 'userRole=; path=/; expires=Thu, 01 Jan 1970 00:00:00 UTC';
     document.cookie = 'userId=; path=/; expires=Thu, 01 Jan 1970 00:00:00 UTC';
     document.cookie = 'userEmail=; path=/; expires=Thu, 01 Jan 1970 00:00:00 UTC';
+    document.cookie = 'userName=; path=/; expires=Thu, 01 Jan 1970 00:00:00 UTC';
     window.location.href = '/login';
   };
 
@@ -84,6 +94,49 @@ export default function DashboardLayout({
         <nav className="px-3">
           {filteredNavItems.map((item) => {
             const Icon = item.icon;
+
+            if (item.subItems) {
+              const isReportsActive = pathname.startsWith('/reports');
+              return (
+                <div key={item.href}>
+                  <button
+                    onClick={() => setReportsOpen(!reportsOpen)}
+                    className={`flex items-center justify-between w-full px-3 py-2.5 rounded-lg mb-1 ${
+                      isReportsActive
+                        ? 'bg-blue-600 text-white'
+                        : 'text-slate-300 hover:bg-slate-800 hover:text-white'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <Icon className="w-5 h-5" />
+                      <span>{item.label}</span>
+                    </div>
+                    <ChevronDown className={`w-4 h-4 transition-transform ${reportsOpen ? 'rotate-180' : ''}`} />
+                  </button>
+                  {reportsOpen && item.subItems.map((subItem) => {
+                    const SubIcon = subItem.icon;
+                    const isActive = pathname === subItem.href;
+                    return (
+                      <Link
+                        key={subItem.href}
+                        href={subItem.href}
+                        onClick={() => {
+                          setSidebarOpen(false);
+                          setReportsOpen(false);
+                        }}
+                        className={`flex items-center gap-3 pl-10 pr-3 py-2 rounded-lg mb-1 ${
+                          isActive ? 'bg-blue-600 text-white' : 'text-slate-300 hover:bg-slate-800'
+                        }`}
+                      >
+                        <SubIcon className="w-4 h-4" />
+                        <span>{subItem.label}</span>
+                      </Link>
+                    );
+                  })}
+                </div>
+              );
+            }
+
             const isActive = pathname === item.href;
             return (
               <Link

@@ -52,6 +52,7 @@ export async function POST(request: Request) {
             where: {
               date_branchId: {
                 date: dateObj,
+                // @ts-expect-error - Prisma type mismatch with optional compound unique key
                 branchId: null,
               },
             },
@@ -75,6 +76,7 @@ export async function POST(request: Request) {
             where: {
               date_branchId: {
                 date: dateObj,
+                // @ts-expect-error - Prisma type mismatch with optional compound unique key
                 branchId: null,
               },
             },

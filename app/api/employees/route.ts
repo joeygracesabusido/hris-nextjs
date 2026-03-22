@@ -5,9 +5,15 @@ import { calculateDailyRate } from '@/lib/payroll';
 
 const EMPLOYEES_CACHE_KEY = 'employees:all';
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
+    const { searchParams } = new URL(request.url);
+    const position = searchParams.get('position');
+
+    const whereClause = position ? { position: { contains: position, mode: 'insensitive' as const } } : {};
+
     const employees = await prisma.employee.findMany({
+      where: whereClause,
       orderBy: { createdAt: 'desc' },
     });
     return NextResponse.json(employees);

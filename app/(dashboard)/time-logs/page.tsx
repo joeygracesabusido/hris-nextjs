@@ -128,7 +128,7 @@ export default function TimeLogsPage() {
       const res = await fetch('/api/office-location');
       if (res.ok) {
         const locations = await res.json();
-        const activeLocation = locations.find((loc: any) => loc.isActive);
+        const activeLocation = locations.find((loc: { isActive: boolean; name: string; latitude: number; longitude: number; radius: number }) => loc.isActive);
         if (activeLocation) {
           setOfficeLocation({
             name: activeLocation.name,

@@ -3,9 +3,15 @@ import { Prisma } from '@prisma/client';
 import prisma from '@/lib/prisma';
 import { cookies } from 'next/headers';
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
+    const { searchParams } = new URL(request.url);
+    const role = searchParams.get('role');
+
+    const whereClause = role ? { role: role.toUpperCase() as 'ADMIN' | 'HR' | 'MANAGER' | 'EMPLOYEE' } : {};
+
     const users = await prisma.user.findMany({
+      where: whereClause,
       select: {
         id: true,
         username: true,

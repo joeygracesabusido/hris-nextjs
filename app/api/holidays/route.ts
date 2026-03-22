@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
 import { cookies } from 'next/headers'
 import { z } from 'zod'
+import type { HolidayType } from '@prisma/client'
 
 const createHolidaySchema = z.object({
   name: z.string().min(1, 'Name is required'),
@@ -28,7 +29,7 @@ export async function GET(request: Request) {
 
     const where: {
       year?: number
-      type?: string
+      type?: HolidayType
       branchId?: string | null
       isActive?: boolean
     } = {}
@@ -38,7 +39,7 @@ export async function GET(request: Request) {
     }
 
     if (type) {
-      where.type = type
+      where.type = type as HolidayType
     }
 
     if (branchId === 'null') {
@@ -145,12 +146,12 @@ export async function PATCH(request: Request) {
     const { id, name, type, isActive } = result.data
     const updateData: {
       name?: string
-      type?: string
+      type?: HolidayType
       isActive?: boolean
     } = {}
 
     if (name !== undefined) updateData.name = name
-    if (type !== undefined) updateData.type = type
+    if (type !== undefined) updateData.type = type as HolidayType
     if (isActive !== undefined) updateData.isActive = isActive
 
     const holiday = await prisma.holiday.update({

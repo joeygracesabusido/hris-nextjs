@@ -93,9 +93,9 @@ export async function POST(request: Request) {
     });
 
     return NextResponse.json(location, { status: 201 });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Error creating office location:', error);
-    if (error?.code === 'P2002') {
+    if (error instanceof Error && 'code' in error && error.code === 'P2002') {
       return NextResponse.json(
         { error: 'Office location with this name already exists' },
         { status: 409 }
@@ -130,7 +130,7 @@ export async function PATCH(request: Request) {
       );
     }
 
-    const updateData: any = {};
+    const updateData: Partial<{ name: string; latitude: number; longitude: number; radius: number; isActive: boolean }> = {};
 
     if (name !== undefined) updateData.name = name;
     if (latitude !== undefined) {
@@ -206,7 +206,7 @@ export async function DELETE(request: Request) {
 }
 
 // Helper function to check if a location is within the office geofence
-export async function checkGeofence(latitude: number, longitude: number): Promise<{
+async function checkGeofence(latitude: number, longitude: number): Promise<{
   isValid: boolean;
   distance: number;
   office?: {

@@ -9,7 +9,7 @@ async function test() {
     // Jerome Sabusido's ID from previous search
     const employeeId = '69a3f6fd7dcda7c88bc10320';
     
-    const advance = await (prisma as any).advance.create({
+    const advance = await prisma.advance.create({
       data: {
         employeeId: employeeId,
         type: 'CASH_ADVANCE',
@@ -21,8 +21,12 @@ async function test() {
     });
     
     console.log('SUCCESS: Advance created via script:', JSON.stringify(advance, null, 2));
-  } catch (error: any) {
-    console.error('FAILURE: Error in script:', error.message);
+  } catch (error: unknown) {
+    if (error instanceof Error) {
+      console.error('FAILURE: Error in script:', error.message);
+    } else {
+      console.error('FAILURE: Error in script:', error);
+    }
     console.log('AVAILABLE MODELS IN SCRIPT:', Object.keys(prisma).filter(k => !k.startsWith('$')));
   } finally {
     await prisma.$disconnect();

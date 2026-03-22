@@ -1,17 +1,10 @@
 {
-  "/api/shifts/route": "app/api/shifts/route.js",
-  "/api/schedules/route": "app/api/schedules/route.js",
-  "/api/leave-credits/balance/route": "app/api/leave-credits/balance/route.js",
-  "/api/leave-credits/route": "app/api/leave-credits/route.js",
-  "/api/employees/route": "app/api/employees/route.js",
-  "/api/leaves/route": "app/api/leaves/route.js",
+  "/page": "app/page.js",
+  "/api/dashboard/stats/route": "app/api/dashboard/stats/route.js",
   "/api/current-user/route": "app/api/current-user/route.js",
-  "/api/overtime/route": "app/api/overtime/route.js",
-  "/api/time-logs/route": "app/api/time-logs/route.js",
-  "/api/office-location/route": "app/api/office-location/route.js",
-  "/(dashboard)/employees/page": "app/(dashboard)/employees/page.js",
-  "/(dashboard)/leave-credits/page": "app/(dashboard)/leave-credits/page.js",
-  "/(dashboard)/leaves/page": "app/(dashboard)/leaves/page.js",
-  "/(dashboard)/overtime/page": "app/(dashboard)/overtime/page.js",
-  "/(dashboard)/time-logs/page": "app/(dashboard)/time-logs/page.js"
+  "/api/payroll/route": "app/api/payroll/route.js",
+  "/api/employees/route": "app/api/employees/route.js",
+  "/(auth)/login/page": "app/(auth)/login/page.js",
+  "/(dashboard)/dashboard/page": "app/(dashboard)/dashboard/page.js",
+  "/(dashboard)/reports/print-payroll/page": "app/(dashboard)/reports/print-payroll/page.js"
 }
