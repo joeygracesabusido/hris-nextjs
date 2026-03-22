@@ -6,6 +6,8 @@
 // User & Authentication Types
 // ============================================================================
 
+export type UserRole = 'ADMIN' | 'HR' | 'MANAGER' | 'EMPLOYEE'
+
 export interface UserSession {
   id: string
   email: string
@@ -261,4 +263,55 @@ export interface PaginatedResponse<T> {
   page: number
   pageSize: number
   totalPages: number
+}
+
+// ============================================================================
+// Leave Credit Types (Philippine Labor Law Compliance)
+// ============================================================================
+
+export type EmployeeStatus = 'PROBATIONARY' | 'REGULAR'
+
+export type LeaveCreditType = 'MONTHLY_ACCRUAL' | 'ADJUSTMENT' | 'USED' | 'CARRY_FORWARD' | 'EXPIRED'
+
+export interface LeaveCredit {
+  id: string
+  employeeId: string
+  leaveType: string
+  totalDays: number
+  usedDays: number
+  availableDays: number
+  year: number
+  createdAt: Date
+  updatedAt: Date
+}
+
+export interface LeaveCreditWithEmployee extends LeaveCredit {
+  employee: {
+    id: string
+    fullName: string
+    employeeId: string
+    hireDate: Date
+    employeeStatus: EmployeeStatus
+  }
+}
+
+export interface LeaveCreditTransaction {
+  id: string
+  leaveCreditId: string
+  type: LeaveCreditType
+  days: number
+  balanceBefore: number
+  balanceAfter: number
+  description: string
+  referenceId?: string
+  createdAt: Date
+}
+
+export interface LeaveCreditBalance {
+  employeeId: string
+  leaveType: string
+  available: number
+  used: number
+  total: number
+  year: number
 }
