@@ -316,12 +316,11 @@ export default function TimeLogsPage() {
 
   const formatTime = (dateStr: string | null) => {
     if (!dateStr) return '-';
-    // Parse the date string and extract time components directly
-    // The dateStr format from API is like "2026-03-01T03:48:01.000Z" (UTC) or ISO with offset
     const date = new Date(dateStr);
-    // Get hours in local timezone to match how it was stored
-    const hours = date.getHours();
-    const minutes = date.getMinutes();
+    // Times are stored as UTC but represent Philippines local time
+    // So we display the UTC hours/minutes directly as Philippines time
+    const hours = date.getUTCHours();
+    const minutes = date.getUTCMinutes();
     const ampm = hours >= 12 ? 'PM' : 'AM';
     const hour12 = hours % 12 || 12;
     return `${hour12}:${minutes.toString().padStart(2, '0')} ${ampm}`;
@@ -346,7 +345,7 @@ export default function TimeLogsPage() {
       const [shiftHour, shiftMinute] = log.shift.startTime.split(':').map(Number);
       
       const scheduledStartTime = new Date(clockInDate);
-      scheduledStartTime.setHours(shiftHour, shiftMinute, 0, 0);
+      scheduledStartTime.setUTCHours(shiftHour, shiftMinute, 0, 0);
 
       // If clock in is more than 1 minute after scheduled time, it's late
       const diffInMinutes = (clockInDate.getTime() - scheduledStartTime.getTime()) / (1000 * 60);

@@ -62,9 +62,12 @@ export async function POST(request: Request) {
         return null;
       }
 
-      const result = new Date(dateObj);
-      result.setHours(hours, minutes, 0, 0);
-      return result;
+      // Create date with hours/minutes in UTC to ensure consistency across deployments
+      // The dateObj is already in UTC (from parseDate), so we set UTC hours
+      const year = dateObj.getUTCFullYear();
+      const month = dateObj.getUTCMonth();
+      const day = dateObj.getUTCDate();
+      return new Date(Date.UTC(year, month, day, hours, minutes, 0, 0));
     };
 
     const parseDate = (dateVal: string | number | Date | null): Date | null => {
@@ -79,14 +82,14 @@ export async function POST(request: Request) {
       if (!dateMatch) return null;
       
       const [, month, day, year] = dateMatch;
-      // Use noon to avoid timezone shift when stored in MongoDB
-      // March 16, 2026 12:00:00 local -> March 16, 2026 in UTC+8 to UTC-12 range
-      return new Date(
+      // Use UTC noon to ensure consistent date across all timezones
+      // This prevents timezone shift issues between local dev and Vercel deployment
+      return new Date(Date.UTC(
         parseInt(year),
         parseInt(month) - 1,
         parseInt(day),
         12, 0, 0, 0
-      );
+      ));
     };
 
     const groupedByEmployee: Map<string, Map<string, { row: (string | number | Date | null)[]; dateObj: Date }>> = new Map();
@@ -127,8 +130,7 @@ export async function POST(request: Request) {
 
       for (const [dateStr, { row }] of dateMap) {
         try {
-          const dateObj = new Date(dateStr);
-          dateObj.setHours(12, 0, 0, 0); // Use noon to avoid timezone shift
+          const dateObj = new Date(dateStr + 'T12:00:00Z'); // Use UTC noon
 
           const punches: PunchTime[] = [];
           
@@ -157,7 +159,7 @@ export async function POST(request: Request) {
               where: {
                 employeeId: employee.id,
                 date: {
-                  gte: new Date(dateObj.getTime()),
+                  gte: dateObj,
                   lt: new Date(dateObj.getTime() + 24 * 60 * 60 * 1000),
                 },
               },
@@ -204,7 +206,7 @@ export async function POST(request: Request) {
             where: {
               employeeId: employee.id,
               date: {
-                gte: new Date(dateObj.getTime()),
+                gte: dateObj,
                 lt: new Date(dateObj.getTime() + 24 * 60 * 60 * 1000),
               },
             },
@@ -214,7 +216,7 @@ export async function POST(request: Request) {
           if (shiftSchedule?.shift && !shiftSchedule.shift.isOff && shiftSchedule.shift.startTime !== '-') {
             const [shiftHour, shiftMin] = shiftSchedule.shift.startTime.split(':').map(Number);
             const scheduledTime = new Date(firstPunch.time);
-            scheduledTime.setHours(shiftHour, shiftMin, 0, 0);
+            scheduledTime.setUTCHours(shiftHour, shiftMin, 0, 0);
             
             const lateMs = firstPunch.time.getTime() - scheduledTime.getTime();
             if (lateMs > 60000) {
@@ -224,7 +226,7 @@ export async function POST(request: Request) {
             if (shiftSchedule.shift.endTime !== '-') {
               const [endHour, endMin] = shiftSchedule.shift.endTime.split(':').map(Number);
               const scheduledEndTime = new Date(lastPunch.time);
-              scheduledEndTime.setHours(endHour, endMin, 0, 0);
+              scheduledEndTime.setUTCHours(endHour, endMin, 0, 0);
               
               const undertimeMs = scheduledEndTime.getTime() - lastPunch.time.getTime();
               if (undertimeMs > 60000) {
@@ -241,7 +243,7 @@ export async function POST(request: Request) {
             where: {
               employeeId: employee.id,
               date: {
-                gte: new Date(dateObj.getTime()),
+                gte: dateObj,
                 lt: new Date(dateObj.getTime() + 24 * 60 * 60 * 1000),
               },
             },

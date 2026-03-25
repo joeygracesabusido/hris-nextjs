@@ -1020,6 +1020,12 @@ export default function PayrollPage() {
                                 <div className="flex justify-between"><span className="text-gray-600">Base Salary</span><span>{formatCurrency(record.basicSalary)}</span></div>
                                 <div className="flex justify-between"><span className="text-gray-600">OT Hours</span><span>{record.otHours} hrs</span></div>
                                 <div className="flex justify-between"><span className="text-gray-600">OT Pay</span><span>{formatCurrency(record.otPay)}</span></div>
+                                {record.holidayPay && record.holidayPay > 0 && (
+                                  <>
+                                    <div className="flex justify-between text-green-600"><span className="text-gray-600">Holiday Pay</span><span>{formatCurrency(record.holidayPay)}</span></div>
+                                    <div className="text-xs text-gray-500 pl-4">Holiday computation included in gross pay</div>
+                                  </>
+                                )}
                                 {(record.adjustmentAdd ?? 0) > 0 && (
                                   <div className="flex justify-between text-green-600"><span className="text-gray-600">Adjustment (+)</span><span>+{formatCurrency(record.adjustmentAdd!)}</span></div>
                                 )}

@@ -208,3 +208,67 @@ DATABASE_URL=mongodb+srv://...
 NEXTAUTH_SECRET=your-secret
 NEXTAUTH_URL=http://localhost:3000
 ```
+
+---
+
+## Recent Fixes
+
+### XCLS Excel Import Timezone Fix (2026-03-25)
+
+**Issue**: Time logs imported from XCLS Excel files displayed incorrect times on Vercel deployment vs local development due to timezone handling.
+
+**Root Cause**: 
+- Backend used `Date.UTC()` to store times consistently as UTC
+- Frontend `formatTime()` used `getHours()` which converts to browser's local timezone
+- This caused `7:48 AM` Philippines time to display as `3:48 PM` (UTC+8 offset)
+
+**Solution**:
+- Updated `formatTime()` in `app/(dashboard)/time-logs/page.tsx:317` to use `getUTCHours()` and `getUTCMinutes()`
+- Times are stored as UTC but represent Philippines local time, so display UTC hours/minutes directly
+
+**Files Modified**:
+- `app/(dashboard)/time-logs/page.tsx` - Fixed `formatTime()` function
+- `app/api/time-logs/import-xcls/route.ts` - Already using `Date.UTC()` for consistent storage
+
+### Payroll Holiday Pay Display (2026-03-25)
+
+**Issue**: When expanding payroll records in the payslip table, holiday pay computation was not visible.
+
+**Solution**: Added holiday pay display to the expanded payroll details section.
+
+**Files Modified**:
+- `app/(dashboard)/payroll/page.tsx:1023` - Added holiday pay row with computation note in expanded view
+
+### Late/Undertime Computation Timezone Fix (2026-03-25)
+
+**Issue**: Late and undertime computation was incorrect when importing XCLS Excel files. Example: Employee clocked in at 7:50 AM (10 minutes early for 8:00 AM shift) but system showed 468 minutes (7h 48m) late.
+
+**Root Cause**: 
+- Clock-in times are stored as UTC (e.g., `2026-03-23T07:50:00.000Z` represents 7:50 AM Philippines time)
+- Late computation used `setHours()` which sets hours in local timezone
+- This created a timezone mismatch: comparing 7:50 AM PH time vs 8:00 AM UTC (4:00 PM PH time)
+
+**Solution**:
+- Changed `setHours()` to `setUTCHours()` and `setUTCMinutes()` in late/undertime computation
+- Ensures both clock-in time and scheduled shift time are compared in the same timezone (UTC)
+
+**Files Modified**:
+- `app/api/time-logs/import-xcls/route.ts:219` - Changed `setHours()` to `setUTCHours()` for scheduled time
+- `app/api/time-logs/import-xcls/route.ts:229` - Changed `setHours()` to `setUTCHours()` for scheduled end time
+
+### Frontend Lateness Display Timezone Fix (2026-03-25)
+
+**Issue**: The "Late (7h 50m)" badge displayed incorrectly in the time logs table even after backend fix. Employee JJONATHAN SALAZAR ABRIOL (91417) clocking in at 7:50 AM showed as 7h 50m late instead of "On Time".
+
+**Root Cause**:
+- Frontend `getLatenessRemarks()` function used `setHours()` to compute scheduled start time
+- This caused the same timezone mismatch as the backend issue: comparing UTC-stored clock-in time with local timezone scheduled time
+
+**Solution**:
+- Changed `setHours()` to `setUTCHours()` in `getLatenessRemarks()` function
+- Ensures frontend display computation matches backend storage timezone
+
+**Files Modified**:
+- `app/(dashboard)/time-logs/page.tsx:348` - Changed `setHours()` to `setUTCHours()` in `getLatenessRemarks()` function
+
+**Note**: Existing time log records with incorrect `lateMinutes` values need to be re-imported via XCLS import to recalculate with the fixed logic.
