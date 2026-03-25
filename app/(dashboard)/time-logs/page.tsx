@@ -59,7 +59,6 @@ export default function TimeLogsPage() {
   const [biometricImportOpen, setBiometricImportOpen] = useState(false);
   const [biometricImporting, setBiometricImporting] = useState(false);
   const [biometricImportResult, setBiometricImportResult] = useState<{ success: number; failed: number; errors: string[] } | null>(null);
-  const [biometricDateFormat, setBiometricDateFormat] = useState('mm-dd-yyyy');
   const [searchTerm, setSearchTerm] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
   const biometricFileInputRef = useRef<HTMLInputElement>(null);
@@ -466,7 +465,6 @@ export default function TimeLogsPage() {
     try {
       const formData = new FormData();
       formData.append('file', file);
-      formData.append('dateFormat', biometricDateFormat);
 
       const res = await fetch('/api/time-logs/import-biometric', {
         method: 'POST',
@@ -563,7 +561,7 @@ export default function TimeLogsPage() {
                     <div>
                       <DialogTitle className="text-xl font-bold text-white">Import Biometric Data</DialogTitle>
                       <DialogDescription className="text-purple-100 text-sm mt-0.5">
-                        Upload .dat file from ZKTeco biometric device
+                        Upload .dat file from Touchlink Time Recorder
                       </DialogDescription>
                     </div>
                   </div>
@@ -576,54 +574,12 @@ export default function TimeLogsPage() {
                       </div>
                       <div className="flex-1">
                         <p className="font-semibold text-gray-900 mb-1">File Format</p>
-                        <p className="text-sm text-gray-500 mb-3">ZKTeco .dat format (tab-separated)</p>
+                        <p className="text-sm text-gray-500 mb-3">Touchlink .dat format (tab-separated)</p>
                         <div className="bg-white/70 rounded-lg p-3 text-xs font-mono text-gray-600">
-                          <p>UserID&lt;tab&gt;Date&lt;tab&gt;Time</p>
-                          <p className="mt-1 text-gray-400">Example: 1001&lt;tab&gt;01-15-2026&lt;tab&gt;08:30</p>
+                          <p>UserID&lt;tab&gt;DateTime&lt;tab&gt;Status</p>
+                          <p className="mt-1 text-gray-400">Example: 91311&lt;tab&gt;2026-03-01 07:58:16&lt;tab&gt;1</p>
                         </div>
                       </div>
-                    </div>
-                  </div>
-
-                  <div className="bg-white border rounded-2xl p-5">
-                    <Label className="font-semibold text-gray-900 mb-2 block">Date Format</Label>
-                    <div className="grid grid-cols-3 gap-3">
-                      <label className="flex items-center gap-2 p-3 border-2 rounded-xl cursor-pointer hover:bg-purple-50 transition-colors"
-                        style={{ borderColor: biometricDateFormat === 'yyyy-mm-dd' ? '#9333ea' : '#e5e7eb' }}>
-                        <input
-                          type="radio"
-                          name="dateFormat"
-                          value="yyyy-mm-dd"
-                          checked={biometricDateFormat === 'yyyy-mm-dd'}
-                          onChange={(e) => setBiometricDateFormat(e.target.value)}
-                          className="w-4 h-4 text-purple-600"
-                        />
-                        <span className="text-sm font-medium">YYYY-MM-DD</span>
-                      </label>
-                      <label className="flex items-center gap-2 p-3 border-2 rounded-xl cursor-pointer hover:bg-purple-50 transition-colors"
-                        style={{ borderColor: biometricDateFormat === 'mm-dd-yyyy' ? '#9333ea' : '#e5e7eb' }}>
-                        <input
-                          type="radio"
-                          name="dateFormat"
-                          value="mm-dd-yyyy"
-                          checked={biometricDateFormat === 'mm-dd-yyyy'}
-                          onChange={(e) => setBiometricDateFormat(e.target.value)}
-                          className="w-4 h-4 text-purple-600"
-                        />
-                        <span className="text-sm font-medium">MM-DD-YYYY</span>
-                      </label>
-                      <label className="flex items-center gap-2 p-3 border-2 rounded-xl cursor-pointer hover:bg-purple-50 transition-colors"
-                        style={{ borderColor: biometricDateFormat === 'dd-mm-yyyy' ? '#9333ea' : '#e5e7eb' }}>
-                        <input
-                          type="radio"
-                          name="dateFormat"
-                          value="dd-mm-yyyy"
-                          checked={biometricDateFormat === 'dd-mm-yyyy'}
-                          onChange={(e) => setBiometricDateFormat(e.target.value)}
-                          className="w-4 h-4 text-purple-600"
-                        />
-                        <span className="text-sm font-medium">DD-MM-YYYY</span>
-                      </label>
                     </div>
                   </div>
 

@@ -1,11 +1,16 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 
+interface TouchlinkLog {
+  employeeId: string;
+  dateTime: Date;
+  status: number;
+}
+
 export async function POST(request: Request) {
   try {
     const formData = await request.formData();
     const file = formData.get('file') as File;
-    const dateFormat = formData.get('dateFormat') as string;
 
     if (!file) {
       return NextResponse.json(
@@ -30,110 +35,73 @@ export async function POST(request: Request) {
       errors: [] as string[],
     };
 
-    const parseZKTecoDate = (dateStr: string, format: string): Date | null => {
-      if (!dateStr) return null;
+    const parseTouchlinkLine = (line: string): TouchlinkLog | null => {
+      const fields = line.trim().split(/\t+/);
       
-      try {
-        const parts = dateStr.split('-');
-        if (parts.length === 3) {
-          let year: number, month: number, day: number;
-          
-          if (format === 'yyyy-mm-dd') {
-            year = parseInt(parts[0], 10);
-            month = parseInt(parts[1], 10) - 1;
-            day = parseInt(parts[2], 10);
-          } else if (format === 'mm-dd-yyyy') {
-            month = parseInt(parts[0], 10) - 1;
-            day = parseInt(parts[1], 10);
-            year = parseInt(parts[2], 10);
-          } else { // dd-mm-yyyy
-            day = parseInt(parts[0], 10);
-            month = parseInt(parts[1], 10) - 1;
-            year = parseInt(parts[2], 10);
-          }
-          
-          const date = new Date(year, month, day);
-          if (isNaN(date.getTime())) return null;
-          return date;
-        }
-        return null;
-      } catch {
-        return null;
-      }
+      if (fields.length < 2) return null;
+
+      const userId = fields[0].trim();
+      const dateTimeStr = fields[1].trim();
+
+      if (!userId || !dateTimeStr) return null;
+
+      const dateTime = new Date(dateTimeStr);
+      if (isNaN(dateTime.getTime())) return null;
+
+      const status = fields[2] ? parseInt(fields[2], 10) : 0;
+
+      return {
+        employeeId: userId,
+        dateTime,
+        status,
+      };
     };
 
-    const parseZKTecoTime = (timeStr: string): Date | null => {
-      if (!timeStr) return null;
-      
-      try {
-        const parts = timeStr.split(':');
-        if (parts.length === 2) {
-          const hours = parseInt(parts[0], 10);
-          const minutes = parseInt(parts[1], 10);
-          if (!isNaN(hours) && !isNaN(minutes)) {
-            const date = new Date();
-            date.setHours(hours, minutes, 0, 0);
-            return date;
-          }
-        }
-        return null;
-      } catch {
-        return null;
-      }
-    };
+    const groupedLogs: Map<string, TouchlinkLog[]> = new Map();
 
     for (let i = 0; i < lines.length; i++) {
-      const line = lines[i];
+      const line = lines[i].trim();
+      if (!line) continue;
+
+      const log = parseTouchlinkLine(line);
+      
+      if (!log) {
+        results.failed++;
+        results.errors.push(`Line ${i + 1}: Invalid format`);
+        continue;
+      }
+
+      const key = `${log.employeeId}_${log.dateTime.toISOString().split('T')[0]}`;
+      if (!groupedLogs.has(key)) {
+        groupedLogs.set(key, []);
+      }
+      groupedLogs.get(key)!.push(log);
+    }
+
+    for (const [key, logs] of groupedLogs) {
+      const [employeeId] = key.split('_');
       
       try {
-        const fields = line.split('\t');
-        
-        if (fields.length < 3) {
-          results.failed++;
-          results.errors.push(`Line ${i + 1}: Invalid format - insufficient fields`);
-          continue;
-        }
-
-        const userId = fields[0].trim();
-        const dateStr = fields[1].trim();
-        const timeStr = fields[2].trim();
-
-        if (!userId || !dateStr || !timeStr) {
-          results.failed++;
-          results.errors.push(`Line ${i + 1}: Missing required fields`);
-          continue;
-        }
-
-        const dateObj = parseZKTecoDate(dateStr, dateFormat);
-        if (!dateObj) {
-          results.failed++;
-          results.errors.push(`Line ${i + 1}: Invalid date format "${dateStr}"`);
-          continue;
-        }
-
-        const timeObj = parseZKTecoTime(timeStr);
-        if (!timeObj) {
-          results.failed++;
-          results.errors.push(`Line ${i + 1}: Invalid time format "${timeStr}"`);
-          continue;
-        }
-
         const employee = await prisma.employee.findFirst({
           where: { 
             OR: [
-              { employeeNumber: parseInt(userId) },
-              { employeeId: userId }
+              { employeeNumber: parseInt(employeeId, 10) },
+              { employeeId: employeeId }
             ]
           },
         });
 
         if (!employee) {
-          results.failed++;
-          results.errors.push(`Line ${i + 1}: Employee not found for ID "${userId}"`);
+          results.failed += logs.length;
+          results.errors.push(`Employee not found for ID "${employeeId}"`);
           continue;
         }
 
-        const dateNormalized = new Date(dateObj);
+        logs.sort((a, b) => a.dateTime.getTime() - b.dateTime.getTime());
+        const firstLog = logs[0];
+        const lastLog = logs[logs.length - 1];
+
+        const dateNormalized = new Date(firstLog.dateTime);
         dateNormalized.setHours(0, 0, 0, 0);
 
         const dateStart = new Date(dateNormalized);
@@ -150,36 +118,57 @@ export async function POST(request: Request) {
           },
         });
 
-        const clockInTime = new Date(dateNormalized);
-        clockInTime.setHours(timeObj.getHours(), timeObj.getMinutes(), 0, 0);
-
         if (existingLog) {
-          if (!existingLog.clockIn) {
-            await prisma.timeLog.update({
-              where: { id: existingLog.id },
-              data: {
-                clockIn: clockInTime,
-                isEdited: true,
-                notes: 'Imported from biometric device',
-              },
-            });
+          const hasClockIn = existingLog.clockIn !== null;
+          const hasClockOut = existingLog.clockOut !== null;
+
+          const updateData: Record<string, unknown> = {
+            isEdited: true,
+            notes: 'Imported from Touchlink biometric device',
+          };
+
+          if (!hasClockIn) {
+            updateData.clockIn = firstLog.dateTime;
           }
-          results.success++;
+          if (!hasClockOut && logs.length > 1) {
+            updateData.clockOut = lastLog.dateTime;
+            
+            if (firstLog.dateTime && lastLog.dateTime) {
+              const hoursWorked = (lastLog.dateTime.getTime() - firstLog.dateTime.getTime()) / (1000 * 60 * 60);
+              updateData.workHours = Math.round(hoursWorked * 100) / 100;
+            }
+          }
+
+          await prisma.timeLog.update({
+            where: { id: existingLog.id },
+            data: updateData,
+          });
         } else {
+          const clockIn = firstLog.dateTime;
+          const clockOut = logs.length > 1 ? lastLog.dateTime : null;
+          
+          let workHours = 0;
+          if (clockIn && clockOut) {
+            workHours = (clockOut.getTime() - clockIn.getTime()) / (1000 * 60 * 60);
+            workHours = Math.round(workHours * 100) / 100;
+          }
+
           await prisma.timeLog.create({
             data: {
               employeeId: employee.id,
               date: dateNormalized,
-              clockIn: clockInTime,
+              clockIn,
+              clockOut,
+              workHours,
               isEdited: true,
-              notes: 'Imported from biometric device',
+              notes: 'Imported from Touchlink biometric device',
             },
           });
-          results.success++;
         }
+        results.success++;
       } catch (rowError) {
-        results.failed++;
-        results.errors.push(`Line ${i + 1}: ${rowError instanceof Error ? rowError.message : 'Unknown error'}`);
+        results.failed += logs.length;
+        results.errors.push(`Error processing logs for employee "${employeeId}": ${rowError instanceof Error ? rowError.message : 'Unknown error'}`);
       }
     }
 
