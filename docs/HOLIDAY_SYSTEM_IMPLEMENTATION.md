@@ -8,11 +8,22 @@ This document describes the implementation of a complete holiday management syst
 
 ### 1. Holiday Types (Philippine Labor Law)
 
-| Type | Pay if Works | Pay if No Work | OT Rate (First 8hrs) | OT Rate (Excess) |
-|------|-------------|----------------|---------------------|------------------|
-| **REGULAR** | 200% | 100% | 260% | 325% |
-| **SPECIAL** | 150% | 100% | 195% | 243.75% |
-| **SPECIAL_NON_WORKING** | 100% | 0% | 125% | 125% |
+| Type | Work Status | Pay Computation (DOLE) |
+|------|-------------|------------------------|
+| **REGULAR** | Worked | 200% of daily wage (for first 8 hours) |
+| **REGULAR** | Did not work (qualified) | 100% of daily wage |
+| **REGULAR** | Worked on rest day | 260% of daily wage |
+| **SPECIAL** | Worked | 130% of daily wage (for first 8 hours) |
+| **SPECIAL** | Did not work | No pay (no work, no pay) |
+| **SPECIAL** | Worked on rest day | 150% of daily wage |
+| **SPECIAL_NON_WORKING** | Worked | 100% of daily wage |
+| **SPECIAL_NON_WORKING** | Did not work | No pay |
+
+**Overtime on Holidays:**
+- Regular holiday OT (first 8 hrs): Hourly rate × 200% × 130%
+- Regular holiday OT (excess): Hourly rate × 200% × 130% × 130%
+- Special holiday OT (first 8 hrs): Hourly rate × 130% × 130%
+- Special holiday OT (excess): Hourly rate × 130% × 130% × 130%
 
 ### 2. Database Schema
 
@@ -42,6 +53,15 @@ model Holiday {
   @@index([year])
   @@index([branchId])
   @@map("holidays")
+}
+```
+
+#### Payroll Model (Updated)
+```prisma
+model Payroll {
+  // ... other fields
+  holidayPay      Float     @default(0)  // Added: stores holiday pay separately
+  grossPay        Float     @default(0)
 }
 ```
 
@@ -80,6 +100,7 @@ model Holiday {
 1. **`prisma/schema.prisma`**
    - Added `HolidayType` enum
    - Added `Holiday` model
+   - Added `holidayPay` field to `Payroll` model (March 25, 2026 fix)
 
 2. **`lib/payroll.ts`**
    - Added holiday pay calculation functions:
@@ -93,6 +114,8 @@ model Holiday {
    - Updated `countWorkingDays()` to exclude holidays
    - Holidays fetched for payroll period
    - Working days calculation now holiday-aware
+   - **Fixed:** Added `holidayPay` to grossPay calculation for single employee (March 25, 2026)
+   - **Fixed:** Added `holidayPay` field in payroll creation (both bulk and single)
 
 4. **`app/api/time-logs/route.ts`**
    - Added holiday flagging to time log responses
@@ -371,7 +394,90 @@ To test the implementation:
 - Dev server should auto-regenerate on restart
 - LSP errors about `holiday` property are expected until Prisma client is regenerated
 
-### 12. Future Enhancements
+### 12. Bug Fixes
+
+#### March 25, 2026 - Holiday Pay Not Included in Gross Pay
+
+**Problem:** 
+- The `holidayPay` was not included in `grossPay` for single employee payroll computation
+- The `holidayPay` field did not exist in the Payroll model
+
+**Solution:**
+1. Added `holidayPay` field to Payroll model in `prisma/schema.prisma`
+2. Fixed `grossPay` calculation in `app/api/payroll/route.ts` line 515 to include `holidayPay`
+3. Added `holidayPay` to payroll creation (both bulk and single employee cases)
+
+**Files Changed:**
+- `prisma/schema.prisma` - Added `holidayPay Float @default(0)` to Payroll model
+- `app/api/payroll/route.ts:515` - Changed to `grossPay = (daysWithTimeLog * dailyRate) + otPay + holidayPay + adjustmentAdd - adjustmentDeduct`
+- `app/api/payroll/route.ts:518` - Changed to `grossPay = periodSalary + otPay + holidayPay + adjustmentAdd - adjustmentDeduct`
+- `app/api/payroll/route.ts:301,579` - Added `holidayPay` to payroll creation
+
+#### March 25, 2026 - Holiday Date Matching Timezone Issue
+
+**Problem:**
+- Holiday dates were not being matched with time logs due to timezone mismatch
+- Time logs stored in UTC (e.g., `2026-03-19T16:00:00.000Z`) appeared as March 20 in local time (UTC+8)
+- Holiday stored as `2026-03-20T00:00:00.000Z` didn't match the UTC date string
+
+**Solution:**
+- Changed date comparison from `toISOString().split('T')[0]` to `toLocaleDateString('en-CA')`
+- This ensures consistent YYYY-MM-DD format in local timezone for both holiday and time log dates
+
+**Files Changed:**
+- `app/api/payroll/route.ts:190-192` - Changed to use `toLocaleDateString('en-CA')` for bulk employee payroll
+- `app/api/payroll/route.ts:469-471` - Changed to use `toLocaleDateString('en-CA')` for single employee payroll
+
+#### March 25, 2026 - Holiday Pay Rate Correction
+
+**Problem:**
+- Special holiday rate was incorrectly set to 130% (1.3x) instead of 150% (1.5x)
+- Philippine Labor Law requires 150% for special holidays worked
+
+**Solution:**
+- Changed special holiday rate from 1.3 to 1.5 in payroll computation
+- Added proper documentation of Philippine labor law rates
+
+**Files Changed:**
+- `app/api/payroll/route.ts:215` - Changed SPECIAL rate from 1.3 to 1.5 (bulk payroll)
+- `app/api/payroll/route.ts:491` - Changed SPECIAL rate from 1.3 to 1.5 (single employee payroll)
+
+**Philippine Labor Law Holiday Rates:**
+- Regular holiday worked: 200% (2.0x hourly rate)
+- Special holiday worked: 150% (1.5x hourly rate)
+- Special non-working day worked: 100% (1.0x hourly rate)
+
+**Verification:**
+- Run `npx prisma generate` to update Prisma client
+- Holiday pay is now properly computed and stored in payroll records
+
+#### March 25, 2026 - Holiday Pay Computation Correction (Per DOLE Labor Law)
+
+**Problem:**
+- Holiday pay was incorrectly computed using hourly rate × hours worked × multiplier
+- Philippine labor law (DOLE) requires holiday pay based on DAILY rate, not hourly
+
+**Solution:**
+- Changed computation from `hourlyRate × hours × 2.0` to `dailyRate × 2.0` (per day)
+- Holiday pay is now calculated per holiday day worked, not per hour
+- Added counting of holiday days (regularHolidayDays, specialHolidayDays)
+
+**DOLE-Compliant Computation:**
+- Regular holiday worked: Daily Rate × 200% (for first 8 hours)
+- Special holiday worked: Daily Rate × 130% (for first 8 hours)
+- Overtime beyond 8 hours gets additional 30% premium (not yet implemented)
+
+**Files Changed:**
+- `app/api/payroll/route.ts:185-218` - Changed bulk payroll to use daily rate × days
+- `app/api/payroll/route.ts:467-501` - Changed single employee payroll to use daily rate × days
+- `app/(dashboard)/payroll/page.tsx` - Updated display to show "holidayDays" instead of "holidayHours"
+
+**Verification:**
+- Example: If daily rate = ₱500 and worked 1 regular holiday
+  - Old (incorrect): 14.3 hours × ₱62.50/hr × 2.0 = ₱1,787.50
+  - New (correct): 1 day × ₱500 × 2.0 = ₱1,000.00
+
+### 13. Future Enhancements
 
 Potential improvements for the holiday system:
 

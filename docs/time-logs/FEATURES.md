@@ -40,9 +40,58 @@
 
 ### Biometric Import
 1. Click "Import Biometric" button
-2. Select date format used in the device
-3. Upload .dat file from ZKTeco device
+2. Upload .dat file from Touchlink Time Recorder device
+3. Review import results
+
+**Supported Format (Touchlink Time Recorder 3):**
+```
+EmployeeID    DateTime              Status
+91311         2026-03-01 07:58:16   1
+91334         2026-03-01 03:53:08   1
+```
+
+- Tab-separated format
+- First punch of the day = clock-in
+- Last punch of the day = clock-out
+- Work hours calculated automatically
+- Times are in local Philippines time (no timezone conversion needed)
+- Late minutes calculated if clock-in is after shift start time
+- Undertime calculated if clock-out is before shift end time
+
+### XCLS Import
+1. Click "Import XCLS" button
+2. Download the template for correct format
+3. Upload the Excel file (.xlsx or .xls)
 4. Review import results
+
+**Supported Format:**
+| Column | Description |
+|--------|-------------|
+| employee_id | Employee ID number |
+| Date | Date in M/D/YYYY format (e.g., 3/16/2026) |
+| IN | First clock-in time (e.g., 7:48 AM) |
+| OUT | First clock-out time (e.g., 5:01 PM) |
+| IN | Second clock-in time (optional) |
+| OUT | Second clock-out time (optional) |
+| IN | Third clock-in time (optional) |
+| OUT | Third clock-out time (optional) |
+
+**Example:**
+```
+employee_id    Date        IN        OUT       IN        OUT
+91417          3/16/2026   7:48 AM   5:01 PM
+91417          3/20/2026   7:46 AM   5:06 PM             5:06 PM
+91417          3/21/2026   2:46 AM             12:56 PM   5:04 PM
+```
+
+**Behavior:**
+- Supports up to 4 punches per day (3 IN, 3 OUT)
+- First punch = clock-in, last punch = clock-out
+- Work hours calculated from first to last punch
+- **If no IN or OUT for a date**: Marks as "Absent - No IN/OUT recorded"
+- Late minutes calculated based on shift schedule
+- Undertime calculated if clock-out is before shift end time
+- **Date Handling:** Uses noon (12:00) local time to prevent timezone shift in MongoDB
 
 ---
 

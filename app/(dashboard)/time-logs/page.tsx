@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { Clock, Play, Square, Upload, Download, FileSpreadsheet, LogOut, Search, AlertCircle, CheckCircle2, MapPin, NavigationOff, Trash2 } from 'lucide-react';
+import * as XLSX from 'xlsx';
 import {
   Dialog,
   DialogContent,
@@ -70,6 +71,10 @@ export default function TimeLogsPage() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [timeLogToDelete, setTimeLogToDelete] = useState<TimeLog | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [xclsImportOpen, setXclsImportOpen] = useState(false);
+  const [xclsImporting, setXclsImporting] = useState(false);
+  const [xclsImportResult, setXclsImportResult] = useState<{ success: number; absent: number; failed: number; errors: string[] } | null>(null);
+  const xclsFileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     const getCookies = () => {
@@ -311,10 +316,15 @@ export default function TimeLogsPage() {
 
   const formatTime = (dateStr: string | null) => {
     if (!dateStr) return '-';
-    return new Date(dateStr).toLocaleTimeString('en-US', { 
-      hour: '2-digit', 
-      minute: '2-digit' 
-    });
+    // Parse the date string and extract time components directly
+    // The dateStr format from API is like "2026-03-01T03:48:01.000Z" (UTC) or ISO with offset
+    const date = new Date(dateStr);
+    // Get hours in local timezone to match how it was stored
+    const hours = date.getHours();
+    const minutes = date.getMinutes();
+    const ampm = hours >= 12 ? 'PM' : 'AM';
+    const hour12 = hours % 12 || 12;
+    return `${hour12}:${minutes.toString().padStart(2, '0')} ${ampm}`;
   };
 
   const formatDate = (dateStr: string) => {
@@ -452,6 +462,72 @@ export default function TimeLogsPage() {
     setBiometricImportResult(null);
     if (biometricFileInputRef.current) {
       biometricFileInputRef.current.value = '';
+    }
+  };
+
+  const resetXclsImport = () => {
+    setXclsImportResult(null);
+    if (xclsFileInputRef.current) {
+      xclsFileInputRef.current.value = '';
+    }
+  };
+
+  const downloadXclsTemplate = () => {
+    const headers = ['employee_id', 'Date', 'IN', 'OUT', 'IN', 'OUT', 'IN', 'OUT'];
+    const sampleRows = [
+      ['91417', '3/16/2026', '7:48 AM', '5:01 PM', '', '', '', ''],
+      ['91417', '3/17/2026', '7:53 AM', '6:00 PM', '', '', '', ''],
+      ['91417', '3/20/2026', '7:46 AM', '5:06 PM', '', '5:06 PM', '', ''],
+      ['91417', '3/21/2026', '2:46 AM', '', '12:56 PM', '5:04 PM', '', ''],
+      ['91417', '3/23/2026', '7:30 AM', '12:05 PM', '', '6:30 PM', '', ''],
+    ];
+
+    const ws = XLSX.utils.aoa_to_sheet([headers, ...sampleRows]);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Time Logs');
+    XLSX.writeFile(wb, 'time_logs_template.xlsx');
+  };
+
+  const handleXclsImport = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    setXclsImporting(true);
+    setXclsImportResult(null);
+
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const res = await fetch('/api/time-logs/import-xcls', {
+        method: 'POST',
+        body: formData,
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        setXclsImportResult({ success: 0, absent: 0, failed: 1, errors: [data.error || 'Import failed'] });
+        return;
+      }
+
+      setXclsImportResult({
+        success: data.results.success,
+        absent: data.results.absent,
+        failed: data.results.failed,
+        errors: data.results.errors || []
+      });
+
+      if (data.results.success > 0 || data.results.absent > 0) {
+        fetchTimeLogs();
+      }
+    } catch (err) {
+      setXclsImportResult({ success: 0, absent: 0, failed: 1, errors: ['Something went wrong during import'] });
+    } finally {
+      setXclsImporting(false);
+      if (xclsFileInputRef.current) {
+        xclsFileInputRef.current.value = '';
+      }
     }
   };
 
@@ -645,6 +721,127 @@ export default function TimeLogsPage() {
                   <Button 
                     variant="outline" 
                     onClick={() => { resetBiometricImport(); setBiometricImportOpen(false); }} 
+                    className="w-full py-6 text-gray-600 hover:text-gray-900 hover:bg-gray-50 rounded-xl border-gray-200"
+                  >
+                    Close
+                  </Button>
+                </div>
+              </DialogContent>
+            </Dialog>
+            <Dialog open={xclsImportOpen} onOpenChange={setXclsImportOpen}>
+              <DialogTrigger asChild>
+                <Button variant="outline" className="gap-2">
+                  <Upload className="w-4 h-4" />
+                  Import XCLS
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="sm:max-w-lg p-0 gap-0 overflow-hidden rounded-2xl shadow-2xl border-0">
+                <div className="relative bg-gradient-to-r from-orange-500 to-red-500 px-6 py-6">
+                  <div className="absolute top-0 right-0 -mt-4 -mr-4 w-24 h-24 bg-white/10 rounded-full blur-xl"></div>
+                  <div className="absolute bottom-0 left-0 -mb-4 -ml-4 w-20 h-20 bg-white/10 rounded-full blur-xl"></div>
+                  <div className="relative flex items-center gap-3">
+                    <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center backdrop-blur-sm">
+                      <FileSpreadsheet className="w-5 h-5 text-white" />
+                    </div>
+                    <div>
+                      <DialogTitle className="text-xl font-bold text-white">Import XCLS Time Logs</DialogTitle>
+                      <DialogDescription className="text-orange-100 text-sm mt-0.5">
+                        Upload Excel file with multiple punches per day
+                      </DialogDescription>
+                    </div>
+                  </div>
+                </div>
+                <div className="p-6 space-y-6">
+                  <div className="bg-gradient-to-br from-orange-50 to-red-50 border border-orange-100 rounded-2xl p-5">
+                    <div className="flex items-start gap-4">
+                      <div className="w-12 h-12 bg-orange-100 rounded-xl flex items-center justify-center flex-shrink-0">
+                        <Download className="w-6 h-6 text-orange-600" />
+                      </div>
+                      <div className="flex-1">
+                        <p className="font-semibold text-gray-900 mb-1">Download Template</p>
+                        <p className="text-sm text-gray-500 mb-3">Get the correct format with employee ID and punch times</p>
+                        <Button 
+                          onClick={downloadXclsTemplate} 
+                          className="gap-2 bg-orange-500 hover:bg-orange-600 text-white shadow-lg shadow-orange-500/20 transition-all hover:scale-105"
+                        >
+                          <Download className="w-4 h-4" />
+                          Download Template
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div className="relative">
+                    <div className="absolute inset-0 flex items-center">
+                      <div className="w-full border-t border-dashed border-gray-200"></div>
+                    </div>
+                    <div className="relative flex justify-center">
+                      <span className="bg-white px-3 text-xs font-medium text-gray-400 uppercase tracking-wider">Or upload file</span>
+                    </div>
+                  </div>
+
+                  <div className="bg-white border-2 border-dashed border-gray-200 rounded-2xl p-6 hover:border-orange-300 hover:bg-orange-50/30 transition-all group">
+                    <Label htmlFor="xcls-file-upload" className="flex flex-col items-center cursor-pointer">
+                      <div className="w-14 h-14 bg-gray-100 group-hover:bg-orange-100 rounded-2xl flex items-center justify-center mb-3 transition-colors">
+                        <Upload className="w-7 h-7 text-gray-400 group-hover:text-orange-600 transition-colors" />
+                      </div>
+                      <span className="text-sm font-medium text-gray-700 group-hover:text-orange-600 transition-colors">Click to upload</span>
+                      <span className="text-xs text-gray-400 mt-1">or drag and drop</span>
+                      <p className="text-xs text-gray-400 mt-3">Supported: .xlsx, .xls</p>
+                    </Label>
+                    <Input
+                      id="xcls-file-upload"
+                      type="file"
+                      accept=".xlsx,.xls"
+                      ref={xclsFileInputRef}
+                      onChange={handleXclsImport}
+                      disabled={xclsImporting}
+                      className="hidden"
+                    />
+                  </div>
+                  
+                  {xclsImporting && (
+                    <div className="flex items-center justify-center gap-3 py-4 bg-orange-50 rounded-xl">
+                      <div className="w-5 h-5 border-2 border-orange-500 border-t-transparent rounded-full animate-spin"></div>
+                      <p className="text-sm font-medium text-orange-700">Importing your file...</p>
+                    </div>
+                  )}
+                  {xclsImportResult && (
+                    <div className={`rounded-2xl p-5 ${xclsImportResult.failed === 0 ? 'bg-gradient-to-br from-green-50 to-emerald-50 border border-green-200' : 'bg-gradient-to-br from-amber-50 to-orange-50 border border-amber-200'}`}>
+                      <div className="flex items-center gap-3 mb-4">
+                        {xclsImportResult.failed === 0 ? (
+                          <div className="w-10 h-10 bg-green-500 rounded-xl flex items-center justify-center shadow-lg shadow-green-500/30">
+                            <CheckCircle2 className="w-5 h-5 text-white" />
+                          </div>
+                        ) : (
+                          <div className="w-10 h-10 bg-amber-500 rounded-xl flex items-center justify-center shadow-lg shadow-amber-500/30">
+                            <AlertCircle className="w-5 h-5 text-white" />
+                          </div>
+                        )}
+                        <div>
+                          <p className={`font-bold ${xclsImportResult.failed === 0 ? 'text-green-700' : 'text-amber-700'}`}>
+                            Import {xclsImportResult.failed === 0 ? 'Successful' : 'Completed with Issues'}
+                          </p>
+                          <p className="text-xs text-gray-500">
+                            {xclsImportResult.success} imported, {xclsImportResult.absent} absent, {xclsImportResult.failed} failed
+                          </p>
+                        </div>
+                      </div>
+                      {xclsImportResult.errors.length > 0 && (
+                        <div className="mt-3 text-xs bg-white/70 rounded-xl p-3 max-h-28 overflow-y-auto border border-gray-100">
+                          {xclsImportResult.errors.slice(0, 5).map((err, i) => (
+                            <p key={i} className="text-red-500 py-1 px-2 rounded bg-red-50/50 mb-1 last:mb-0">{err}</p>
+                          ))}
+                          {xclsImportResult.errors.length > 5 && <p className="text-gray-500 py-1">...and {xclsImportResult.errors.length - 5} more errors</p>}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+                <div className="px-6 pb-6">
+                  <Button 
+                    variant="outline" 
+                    onClick={() => { resetXclsImport(); setXclsImportOpen(false); }} 
                     className="w-full py-6 text-gray-600 hover:text-gray-900 hover:bg-gray-50 rounded-xl border-gray-200"
                   >
                     Close

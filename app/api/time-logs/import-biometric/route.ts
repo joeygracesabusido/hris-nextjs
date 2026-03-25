@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
+import { startOfDay, endOfDay } from 'date-fns';
 
 interface TouchlinkLog {
   employeeId: string;
@@ -45,7 +46,54 @@ export async function POST(request: Request) {
 
       if (!userId || !dateTimeStr) return null;
 
-      const dateTime = new Date(dateTimeStr);
+      // Try to parse the datetime string
+      // Format from Touchlink: "2026-03-01 07:58:16" (24-hour) or "2026-03-01 07:58:16 AM/PM"
+      let dateTime: Date;
+      
+      // Try 24-hour format first: YYYY-MM-DD HH:MM:SS
+      let match = dateTimeStr.match(/^(\d{4})-(\d{2})-(\d{2})\s+(\d{2}):(\d{2}):(\d{2})$/);
+      
+      if (match) {
+        const [, year, month, day, hour, minute, second] = match;
+        const hourNum = parseInt(hour);
+        // Create date in local time - the device already exports in local time
+        // JavaScript will interpret this as the server's local timezone
+        dateTime = new Date(
+          parseInt(year),
+          parseInt(month) - 1,
+          parseInt(day),
+          hourNum,
+          parseInt(minute),
+          parseInt(second)
+        );
+      } else {
+        // Try 12-hour format: YYYY-MM-DD HH:MM:SS AM/PM
+        match = dateTimeStr.match(/^(\d{4})-(\d{2})-(\d{2})\s+(\d{1,2}):(\d{2}):(\d{2})\s+(AM|PM)$/i);
+        
+        if (match) {
+          const [, year, month, day, hour, minute, second, ampm] = match;
+          let hourNum = parseInt(hour);
+          const isPM = ampm.toUpperCase() === 'PM';
+          
+          // Convert 12-hour to 24-hour
+          if (isPM && hourNum !== 12) hourNum += 12;
+          if (!isPM && hourNum === 12) hourNum = 0;
+          
+          // Create date in local time - no timezone conversion needed
+          dateTime = new Date(
+            parseInt(year),
+            parseInt(month) - 1,
+            parseInt(day),
+            hourNum,
+            parseInt(minute),
+            parseInt(second)
+          );
+        } else {
+          // Fallback to standard parsing
+          dateTime = new Date(dateTimeStr);
+        }
+      }
+      
       if (isNaN(dateTime.getTime())) return null;
 
       const status = fields[2] ? parseInt(fields[2], 10) : 0;
@@ -108,6 +156,47 @@ export async function POST(request: Request) {
         const dateEnd = new Date(dateNormalized);
         dateEnd.setDate(dateEnd.getDate() + 1);
 
+        // Fetch shift schedule for this employee on this date
+        const shiftSchedule = await prisma.shiftSchedule.findFirst({
+          where: {
+            employeeId: employee.id,
+            date: {
+              gte: startOfDay(dateNormalized),
+              lte: endOfDay(dateNormalized),
+            },
+          },
+          include: { shift: true },
+        });
+
+        // Calculate lateMinutes based on shift schedule
+        let lateMinutes = 0;
+        let undertimeMinutes = 0;
+        
+        if (shiftSchedule?.shift && !shiftSchedule.shift.isOff && shiftSchedule.shift.startTime !== '-') {
+          const [shiftHour, shiftMin] = shiftSchedule.shift.startTime.split(':').map(Number);
+          const clockInDate = new Date(firstLog.dateTime);
+          const scheduledTime = new Date(clockInDate);
+          scheduledTime.setHours(shiftHour, shiftMin, 0, 0);
+          
+          const lateMs = clockInDate.getTime() - scheduledTime.getTime();
+          if (lateMs > 60000) { // More than 1 minute late
+            lateMinutes = Math.floor(lateMs / 60000);
+          }
+
+          // Calculate undertime if clock out is before scheduled end
+          if (shiftSchedule.shift.endTime !== '-') {
+            const [endHour, endMin] = shiftSchedule.shift.endTime.split(':').map(Number);
+            const clockOutDate = new Date(lastLog.dateTime);
+            const scheduledEndTime = new Date(clockOutDate);
+            scheduledEndTime.setHours(endHour, endMin, 0, 0);
+            
+            const undertimeMs = scheduledEndTime.getTime() - clockOutDate.getTime();
+            if (undertimeMs > 60000) { // More than 1 minute early
+              undertimeMinutes = Math.floor(undertimeMs / 60000);
+            }
+          }
+        }
+
         const existingLog = await prisma.timeLog.findFirst({
           where: {
             employeeId: employee.id,
@@ -129,9 +218,11 @@ export async function POST(request: Request) {
 
           if (!hasClockIn) {
             updateData.clockIn = firstLog.dateTime;
+            updateData.lateMinutes = lateMinutes;
           }
           if (!hasClockOut && logs.length > 1) {
             updateData.clockOut = lastLog.dateTime;
+            updateData.undertimeMinutes = undertimeMinutes;
             
             if (firstLog.dateTime && lastLog.dateTime) {
               const hoursWorked = (lastLog.dateTime.getTime() - firstLog.dateTime.getTime()) / (1000 * 60 * 60);
@@ -160,6 +251,8 @@ export async function POST(request: Request) {
               clockIn,
               clockOut,
               workHours,
+              lateMinutes,
+              undertimeMinutes,
               isEdited: true,
               notes: 'Imported from Touchlink biometric device',
             },

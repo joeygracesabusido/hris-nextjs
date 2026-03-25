@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Plus, Search, DollarSign, Clock, ArrowLeft, Trash2 } from 'lucide-react';
+import { Plus, Search, DollarSign, Clock, ArrowLeft, Trash2, Pencil } from 'lucide-react';
 import { format } from 'date-fns/format';
 import Link from 'next/link';
 
@@ -42,7 +42,13 @@ export default function AdvancesPage() {
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [showDetails, setShowDetails] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
   const [selectedAdvance, setSelectedAdvance] = useState<Advance | null>(null);
+  const [editFormData, setEditFormData] = useState({
+    id: '',
+    deductionAmount: '',
+    totalAmount: '',
+  });
   const [error, setError] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   
@@ -125,6 +131,46 @@ export default function AdvancesPage() {
       fetchAdvances();
     } catch (err: unknown) {
       alert(err instanceof Error ? err.message : 'An unknown error occurred');
+    }
+  };
+
+  const handleEdit = (advance: Advance) => {
+    setEditFormData({
+      id: advance.id,
+      deductionAmount: advance.deductionAmount.toString(),
+      totalAmount: advance.totalAmount.toString(),
+    });
+    setSelectedAdvance(advance);
+    setShowEditModal(true);
+  };
+
+  const handleUpdate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+
+    if (!editFormData.id) {
+      setError('Invalid advance ID');
+      return;
+    }
+
+    try {
+      const res = await fetch('/api/advances', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(editFormData),
+      });
+
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || 'Failed to update advance');
+      }
+
+      alert('Advance updated successfully!');
+      setShowEditModal(false);
+      setEditFormData({ id: '', deductionAmount: '', totalAmount: '' });
+      fetchAdvances();
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'An unknown error occurred');
     }
   };
 
@@ -258,6 +304,13 @@ export default function AdvancesPage() {
                       </span>
                     </td>
                     <td className="px-6 py-4 text-right space-x-2">
+                      <button 
+                        onClick={() => handleEdit(advance)}
+                        className="text-green-600 hover:text-green-800"
+                        title="Edit deduction amount"
+                      >
+                        <Pencil className="w-4 h-4" />
+                      </button>
                       <button 
                         onClick={() => fetchAdvanceDetails(advance.id)}
                         className="text-blue-600 hover:text-blue-800 font-medium"
@@ -484,6 +537,63 @@ export default function AdvancesPage() {
                 Close
               </button>
             </div>
+          </div>
+        </div>
+      )}
+      
+      {/* Edit Modal */}
+      {showEditModal && selectedAdvance && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl w-full max-w-md shadow-xl overflow-hidden">
+            <div className="p-6 border-b flex justify-between items-center bg-green-600 text-white">
+              <h2 className="text-xl font-bold">Edit Advance</h2>
+              <button onClick={() => setShowEditModal(false)} className="hover:opacity-80">
+                <XCircle className="w-6 h-6" />
+              </button>
+            </div>
+            
+            <form onSubmit={handleUpdate} className="p-6 space-y-4">
+              {error && <div className="p-3 bg-red-50 border border-red-200 text-red-700 rounded-lg text-sm">{error}</div>}
+              
+              <div className="bg-gray-50 p-3 rounded-lg">
+                <p className="text-sm text-gray-600">Employee: <span className="font-medium text-gray-900">{selectedAdvance.employee.fullName}</span></p>
+                <p className="text-sm text-gray-600">Current Balance: <span className="font-medium text-red-600">{formatCurrency(selectedAdvance.remainingBalance)}</span></p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Total Amount / Balance *</label>
+                <input 
+                  type="number"
+                  step="0.01"
+                  required
+                  value={editFormData.totalAmount}
+                  onChange={(e) => setEditFormData({...editFormData, totalAmount: e.target.value})}
+                  className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-green-500"
+                  placeholder="0.00"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Deductible Amount per Payroll *</label>
+                <input 
+                  type="number"
+                  step="0.01"
+                  required
+                  value={editFormData.deductionAmount}
+                  onChange={(e) => setEditFormData({...editFormData, deductionAmount: e.target.value})}
+                  className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-green-500"
+                  placeholder="0.00"
+                />
+              </div>
+
+              <div className="flex gap-3 pt-4">
+                <button type="button" onClick={() => setShowEditModal(false)}
+                  className="flex-1 px-4 py-2 border rounded-lg hover:bg-gray-50">Cancel</button>
+                <button type="submit" className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700">
+                  Update
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

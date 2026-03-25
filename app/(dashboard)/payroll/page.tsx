@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Calculator, DollarSign, Clock, CheckCircle, FileText, Download, Printer, ChevronDown, ChevronUp, Trash2 } from 'lucide-react';
+import { Calculator, DollarSign, Clock, CalendarDays, CheckCircle, FileText, Download, Printer, ChevronDown, ChevronUp, Trash2 } from 'lucide-react';
 
 interface Employee {
   id: string;
@@ -26,6 +26,7 @@ interface PayrollRecord {
   daysWorked: number;
   otHours: number;
   otPay: number;
+  holidayPay: number;
   grossPay: number;
   sssEmployee: number;
   philhealthEmployee: number;
@@ -40,6 +41,8 @@ interface PayrollRecord {
   adjustmentAdd?: number;
   adjustmentDeduct?: number;
   adjustmentReason?: string;
+  lateMinutes?: number;
+  undertimeMinutes?: number;
 }
 
 interface PayrollResult {
@@ -65,11 +68,12 @@ interface PayrollResult {
   details: {
     employee: Employee;
     period: { frequency: string };
-    earnings: { baseSalary: number; overtimePay: number; grossPay: number };
+    earnings: { baseSalary: number; overtimePay: number; holidayPay: number; grossPay: number };
     deductions: {
       absences: number;
       lates: number;
       undertime: number;
+      cashAdvance?: number;
       sss: number;
       philHealth: number;
       pagIbig: number;
@@ -78,6 +82,9 @@ interface PayrollResult {
     };
     totals: {
       totalOtHours: number;
+      holidayDays: number;
+      regularHolidayDays?: number;
+      specialHolidayDays?: number;
       leaveDays: number;
       offDays?: number;
       absentDays: number;
@@ -268,9 +275,9 @@ export default function PayrollPage() {
           details: {
             employee: { id: 'all', fullName: 'All Employees', employeeNumber: 0, department: '', position: '', basicSalary: 0, payrollFrequency: '' },
             period: { frequency: formData.frequency },
-            earnings: { baseSalary: 0, overtimePay: 0, grossPay: 0 },
+            earnings: { baseSalary: 0, overtimePay: 0, holidayPay: 0, grossPay: 0 },
             deductions: { absences: 0, lates: 0, undertime: 0, sss: 0, philHealth: 0, pagIbig: 0, withholdingTax: 0, totalDeductions: 0 },
-            totals: { totalOtHours: 0, leaveDays: 0, absentDays: 0, lateMinutes: 0, undertimeMinutes: 0 },
+            totals: { totalOtHours: 0, holidayDays: 0, leaveDays: 0, absentDays: 0, lateMinutes: 0, undertimeMinutes: 0 },
             netPay: 0,
           },
         } as unknown as PayrollResult);
@@ -308,6 +315,7 @@ export default function PayrollPage() {
       'EARNINGS',
       `Base Salary,${formatCurrency(result.details.earnings.baseSalary)}`,
       `Overtime (${result.details.totals.totalOtHours} hrs),${formatCurrency(result.details.earnings.overtimePay)}`,
+      result.details.totals.holidayDays > 0 ? `Holiday (${result.details.totals.holidayDays} day(s)),${formatCurrency(result.details.earnings.holidayPay)}` : null,
       (result.payroll.adjustmentAdd ?? 0) > 0 ? `Adjustment (+),${formatCurrency(result.payroll.adjustmentAdd!)}` : null,
       `GROSS PAY,${formatCurrency(result.details.earnings.grossPay)}`,
       '',
@@ -315,6 +323,7 @@ export default function PayrollPage() {
       result.details.deductions.absences > 0 ? `Absences (${result.details.totals.absentDays} days),${formatCurrency(result.details.deductions.absences)}` : null,
       result.details.deductions.lates > 0 ? `Lates (${result.details.totals.lateMinutes} min),${formatCurrency(result.details.deductions.lates)}` : null,
       result.details.deductions.undertime > 0 ? `Undertime (${result.details.totals.undertimeMinutes} min),${formatCurrency(result.details.deductions.undertime)}` : null,
+      (result.details.deductions.cashAdvance ?? 0) > 0 ? `Cash Advance,${formatCurrency(result.details.deductions.cashAdvance!)}` : null,
       `SSS,${formatCurrency(result.details.deductions.sss)}`,
       `PhilHealth,${formatCurrency(result.details.deductions.philHealth)}`,
       `Pag-IBIG,${formatCurrency(result.details.deductions.pagIbig)}`,
@@ -378,6 +387,7 @@ export default function PayrollPage() {
             <h3>Earnings</h3>
             <div class="row"><span>Base Salary</span><span>${formatCurrency(result.details.earnings.baseSalary)}</span></div>
             <div className="row"><span>Overtime (${result.details.totals.totalOtHours} hrs)</span><span>+${formatCurrency(result.details.earnings.overtimePay)}</span></div>
+            ${result.details.totals.holidayDays > 0 ? `<div className="row"><span>Holiday (${result.details.totals.holidayDays} day(s))</span><span>+${formatCurrency(result.details.earnings.holidayPay)}</span></div>` : ''}
             ${(result.payroll.adjustmentAdd ?? 0) > 0 ? `<div class="row"><span>Adjustment (+)</span><span>+${formatCurrency(result.payroll.adjustmentAdd!)}</span></div>` : ''}
             <div className="row total gross"><span>Gross Pay</span><span>${formatCurrency(result.details.earnings.grossPay)}</span></div>
           </div>
@@ -386,6 +396,7 @@ export default function PayrollPage() {
             ${result.details.deductions.absences > 0 ? `<div class="row"><span>Absences (${result.details.totals.absentDays} days)</span><span>-${formatCurrency(result.details.deductions.absences)}</span></div>` : ''}
             ${result.details.deductions.lates > 0 ? `<div class="row"><span>Lates (${result.details.totals.lateMinutes} min)</span><span>-${formatCurrency(result.details.deductions.lates)}</span></div>` : ''}
             ${result.details.deductions.undertime > 0 ? `<div class="row"><span>Undertime (${result.details.totals.undertimeMinutes} min)</span><span>-${formatCurrency(result.details.deductions.undertime)}</span></div>` : ''}
+            ${(result.details.deductions.cashAdvance ?? 0) > 0 ? `<div class="row"><span>Cash Advance</span><span>-${formatCurrency(result.details.deductions.cashAdvance!)}</span></div>` : ''}
             <div class="row"><span>SSS</span><span>-${formatCurrency(result.details.deductions.sss)}</span></div>
             <div class="row"><span>PhilHealth</span><span>-${formatCurrency(result.details.deductions.philHealth)}</span></div>
             <div class="row"><span>Pag-IBIG</span><span>-${formatCurrency(result.details.deductions.pagIbig)}</span></div>
@@ -456,6 +467,7 @@ export default function PayrollPage() {
             <h3>Earnings</h3>
             <div class="row"><span>Base Salary</span><span>${formatCurrency(record.basicSalary)}</span></div>
             <div class="row"><span>Overtime (${record.otHours} hrs)</span><span>+${formatCurrency(record.otPay)}</span></div>
+            ${record.holidayPay && record.holidayPay > 0 ? `<div class="row"><span>Holiday Pay</span><span>+${formatCurrency(record.holidayPay)}</span></div>` : ''}
             ${record.adjustmentAdd && record.adjustmentAdd > 0 ? `<div class="row"><span>Adjustment (+)</span><span>+${formatCurrency(record.adjustmentAdd)}</span></div>` : ''}
             ${record.adjustmentReason ? `<div class="row" style="font-size:11px;"><span>Reason:</span><span>${record.adjustmentReason}</span></div>` : ''}
             <div class="row total gross"><span>Gross Pay</span><span>${formatCurrency(record.grossPay)}</span></div>
@@ -774,6 +786,27 @@ export default function PayrollPage() {
                     </span>
                     <span className="font-medium">+{formatCurrency(result.details.earnings.overtimePay)}</span>
                   </div>
+                  {result.details.totals.holidayDays > 0 && (
+                    <div className="flex flex-col gap-1">
+                      <div className="flex justify-between text-green-600">
+                        <span className="flex items-center gap-1">
+                          <CalendarDays className="w-3 h-3" />
+                          Holiday ({result.details.totals.holidayDays} day(s))
+                        </span>
+                        <span className="font-medium">+{formatCurrency(result.details.earnings.holidayPay)}</span>
+                      </div>
+                      {result.details.totals.regularHolidayDays && result.details.totals.regularHolidayDays > 0 && (
+                        <div className="text-xs text-gray-500 pl-4">
+                          Regular Holiday: {result.details.totals.regularHolidayDays} day(s) × 100%
+                        </div>
+                      )}
+                      {result.details.totals.specialHolidayDays && result.details.totals.specialHolidayDays > 0 && (
+                        <div className="text-xs text-gray-500 pl-4">
+                          Special Holiday: {result.details.totals.specialHolidayDays} day(s) × 30%
+                        </div>
+                      )}
+                    </div>
+                  )}
                   {(result.payroll.adjustmentAdd ?? 0) > 0 && (
                     <div className="flex justify-between text-green-600">
                       <span className="text-gray-600">Adjustment (+)</span>
@@ -798,23 +831,36 @@ export default function PayrollPage() {
                   <FileText className="w-4 h-4" />
                   Deductions
                 </h3>
-                <div className="space-y-2">
+                <div className="space-y-1 text-sm bg-gray-50 p-2 rounded">
+                  <div className="text-gray-500 text-xs mb-2">Expected: 13 | Off: {result.details.totals.offDays ?? 0} | Leave: {result.details.totals.leaveDays ?? 0}</div>
                   {result.details.deductions.absences > 0 && (
                     <div className="flex justify-between text-red-600">
                       <span className="text-gray-600">Absences ({result.details.totals.absentDays} days)</span>
                       <span className="font-medium">-{formatCurrency(result.details.deductions.absences)}</span>
                     </div>
                   )}
-                  {result.details.deductions.lates > 0 && (
+                  {(result.details.deductions.lates > 0 || result.details.totals.lateMinutes > 0) && (
                     <div className="flex justify-between text-red-600">
                       <span className="text-gray-600">Lates ({result.details.totals.lateMinutes} min)</span>
                       <span className="font-medium">-{formatCurrency(result.details.deductions.lates)}</span>
                     </div>
                   )}
-                  {result.details.deductions.undertime > 0 && (
+                  {(result.details.deductions.undertime > 0 || result.details.totals.undertimeMinutes > 0) && (
                     <div className="flex justify-between text-red-600">
                       <span className="text-gray-600">Undertime ({result.details.totals.undertimeMinutes} min)</span>
                       <span className="font-medium">-{formatCurrency(result.details.deductions.undertime)}</span>
+                    </div>
+                  )}
+                  {(result.details.deductions.cashAdvance ?? 0) > 0 && (
+                    <div className="flex justify-between text-red-600">
+                      <span className="text-gray-600">Cash Advance</span>
+                      <span className="font-medium">-{formatCurrency(result.details.deductions.cashAdvance!)}</span>
+                    </div>
+                  )}
+                  {(result.details.deductions.cashAdvance ?? 0) === 0 && formData.deductions.includes('cash_advance') && (
+                    <div className="flex justify-between text-gray-400">
+                      <span className="text-gray-600">Cash Advance</span>
+                      <span className="font-medium">-0.00</span>
                     </div>
                   )}
                   <div className="flex justify-between">
@@ -989,11 +1035,19 @@ export default function PayrollPage() {
                             <div>
                               <h4 className="font-medium text-gray-900 mb-2">Deductions</h4>
                               <div className="space-y-1 text-sm">
+                                {(record.lateMinutes ?? 0) > 0 && (
+                                  <div className="flex justify-between"><span className="text-gray-600">Lates ({(record.lateMinutes ?? 0)} min)</span><span className="text-red-600">{formatCurrency(((record.lateMinutes ?? 0) / 60) * (record.basicSalary / 22 / 8))}</span></div>
+                                )}
+                                {(record.undertimeMinutes ?? 0) > 0 && (
+                                  <div className="flex justify-between"><span className="text-gray-600">Undertime ({(record.undertimeMinutes ?? 0)} min)</span><span className="text-red-600">{formatCurrency(((record.undertimeMinutes ?? 0) / 60) * (record.basicSalary / 22 / 8))}</span></div>
+                                )}
                                 <div className="flex justify-between"><span className="text-gray-600">SSS</span><span>{formatCurrency(record.sssEmployee)}</span></div>
                                 <div className="flex justify-between"><span className="text-gray-600">PhilHealth</span><span>{formatCurrency(record.philhealthEmployee)}</span></div>
                                 <div className="flex justify-between"><span className="text-gray-600">Pag-IBIG</span><span>{formatCurrency(record.pagibigEmployee)}</span></div>
                                 <div className="flex justify-between"><span className="text-gray-600">Withholding Tax</span><span>{formatCurrency(record.withholdingTax)}</span></div>
-                                <div className="flex justify-between"><span className="text-gray-600">Other Deductions</span><span>{formatCurrency(record.otherDeductions)}</span></div>
+                                {record.otherDeductions > 0 && (
+                                  <div className="flex justify-between"><span className="text-gray-600">Other (Absences/Cash Advance)</span><span>{formatCurrency(record.otherDeductions)}</span></div>
+                                )}
                                 <div className="flex justify-between font-medium border-t pt-1"><span>Total Deductions</span><span className="text-red-600">{formatCurrency(record.totalDeductions)}</span></div>
                               </div>
                             </div>

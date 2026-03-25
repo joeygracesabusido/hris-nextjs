@@ -171,3 +171,60 @@ export async function DELETE(request: Request) {
     return NextResponse.json({ error: 'Failed to delete advance' }, { status: 500 });
   }
 }
+
+export async function PATCH(request: Request) {
+  try {
+    const cookieStore = await cookies();
+    const userRole = cookieStore.get('userRole')?.value;
+
+    if (userRole !== 'ADMIN') {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
+    }
+
+    const body = await request.json();
+    const { id, deductionAmount, totalAmount } = body;
+
+    if (!id) {
+      return NextResponse.json({ error: 'ID is required' }, { status: 400 });
+    }
+
+    // Get current advance to calculate new balance
+    const currentAdvance = await localPrisma.advance.findUnique({
+      where: { id },
+    });
+
+    if (!currentAdvance) {
+      return NextResponse.json({ error: 'Advance not found' }, { status: 404 });
+    }
+
+    // Calculate new remaining balance
+    const newDeductionAmount = deductionAmount !== undefined ? parseFloat(deductionAmount) : currentAdvance.deductionAmount;
+    const newTotalAmount = totalAmount !== undefined ? parseFloat(totalAmount) : currentAdvance.totalAmount;
+    
+    // Calculate how much has already been deducted
+    const alreadyDeducted = currentAdvance.totalAmount - currentAdvance.remainingBalance;
+    const newRemainingBalance = Math.max(0, newTotalAmount - alreadyDeducted);
+
+    const updatedAdvance = await localPrisma.advance.update({
+      where: { id },
+      data: {
+        deductionAmount: newDeductionAmount,
+        totalAmount: newTotalAmount,
+        remainingBalance: newRemainingBalance,
+        status: newRemainingBalance <= 0 ? 'FULLY_PAID' : 'ACTIVE',
+      },
+    });
+
+    // Invalidate cache
+    try {
+      await cache.delByPattern(`${ADVANCES_CACHE_PREFIX}*`);
+    } catch (err) {
+      console.error('Redis DEL error:', err);
+    }
+
+    return NextResponse.json(updatedAdvance);
+  } catch (error) {
+    console.error('Error updating advance:', error);
+    return NextResponse.json({ error: 'Failed to update advance' }, { status: 500 });
+  }
+}

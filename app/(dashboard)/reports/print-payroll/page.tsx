@@ -13,6 +13,8 @@ interface PayrollRecord {
   grossPay: number;
   totalDeductions: number;
   netPay: number;
+  otPay: number;
+  holidayPay: number;
   status: string;
   employee: {
     id: string;
@@ -226,8 +228,8 @@ export default function PrintPayrollPage() {
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(9);
 
-    const headers = ['No.', 'Employee Name', 'Department', 'Position', 'Basic Salary', 'Gross Pay', 'Deductions', 'Net Pay'];
-    const colWidths = [10, 38, 28, 35, 32, 30, 28, 32];
+    const headers = ['No.', 'Employee Name', 'Department', 'Position', 'Basic Salary', 'OT Pay', 'Holiday Pay', 'Gross Pay', 'Deductions', 'Net Pay'];
+    const colWidths = [10, 35, 25, 30, 25, 22, 22, 25, 22, 28];
     let xPos = 10;
 
     headers.forEach((header, i) => {
@@ -295,13 +297,19 @@ export default function PrintPayrollPage() {
       doc.text(formatCurrency(record.basicSalary), xPos, yPos + 4.2);
       xPos += colWidths[4];
 
-      doc.text(formatCurrency(record.grossPay), xPos, yPos + 4.2);
+      doc.text(formatCurrency(record.otPay || 0), xPos, yPos + 4.2);
       xPos += colWidths[5];
+
+      doc.text(formatCurrency(record.holidayPay || 0), xPos, yPos + 4.2);
+      xPos += colWidths[6];
+
+      doc.text(formatCurrency(record.grossPay), xPos, yPos + 4.2);
+      xPos += colWidths[7];
 
       doc.setTextColor(180, 0, 0);
       doc.text(`(${formatCurrency(record.totalDeductions)})`, xPos, yPos + 4.2);
       doc.setTextColor(0, 0, 0);
-      xPos += colWidths[6];
+      xPos += colWidths[8];
 
       doc.setFont('helvetica', 'bold');
       doc.setTextColor(0, 100, 0);
@@ -319,6 +327,8 @@ export default function PrintPayrollPage() {
     doc.setFontSize(9);
 
     const totalBasic = filteredRecords.reduce((sum, r) => sum + r.basicSalary, 0);
+    const totalOtPay = filteredRecords.reduce((sum, r) => sum + (r.otPay || 0), 0);
+    const totalHolidayPay = filteredRecords.reduce((sum, r) => sum + (r.holidayPay || 0), 0);
     const totalGross = filteredRecords.reduce((sum, r) => sum + r.grossPay, 0);
     const totalDeductions = filteredRecords.reduce((sum, r) => sum + r.totalDeductions, 0);
     const totalNet = filteredRecords.reduce((sum, r) => sum + r.netPay, 0);
@@ -328,8 +338,12 @@ export default function PrintPayrollPage() {
     xPos += colWidths[4];
     doc.text(formatCurrency(totalBasic), xPos, yPos + 4.5);
     xPos += colWidths[5];
-    doc.text(`(${formatCurrency(totalDeductions)})`, xPos, yPos + 4.5);
+    doc.text(formatCurrency(totalOtPay), xPos, yPos + 4.5);
     xPos += colWidths[6];
+    doc.text(formatCurrency(totalHolidayPay), xPos, yPos + 4.5);
+    xPos += colWidths[7];
+    doc.text(`(${formatCurrency(totalDeductions)})`, xPos, yPos + 4.5);
+    xPos += colWidths[8];
     doc.text(formatCurrency(totalNet), xPos, yPos + 4.5);
 
     yPos = Math.max(yPos + 18, pageHeight - 50);
@@ -523,6 +537,8 @@ export default function PrintPayrollPage() {
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Employee</th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Period</th>
                     <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Basic Salary</th>
+                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">OT Pay</th>
+                    <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Holiday Pay</th>
                     <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Gross Pay</th>
                     <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Deductions</th>
                     <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Net Pay</th>
@@ -541,6 +557,8 @@ export default function PrintPayrollPage() {
                         {new Date(record.periodEnd).toLocaleDateString()}
                       </td>
                       <td className="px-4 py-3 text-right text-gray-600">{formatCurrency(record.basicSalary)}</td>
+                      <td className="px-4 py-3 text-right text-gray-600">{formatCurrency(record.otPay || 0)}</td>
+                      <td className="px-4 py-3 text-right text-gray-600">{formatCurrency(record.holidayPay || 0)}</td>
                       <td className="px-4 py-3 text-right text-gray-600">{formatCurrency(record.grossPay)}</td>
                       <td className="px-4 py-3 text-right text-red-600">{formatCurrency(record.totalDeductions)}</td>
                       <td className="px-4 py-3 text-right font-semibold text-green-600">

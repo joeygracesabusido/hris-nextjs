@@ -1,187 +1,65 @@
 {
   "pages": {
-    "/_not-found/page": [
-      "static/chunks/webpack-fc61431f35deee74.js",
-      "static/chunks/fd9d1056-66408495c002d330.js",
-      "static/chunks/117-e5393ee74aa7f05d.js",
-      "static/chunks/main-app-668b263598a11286.js",
-      "static/chunks/app/_not-found/page-95bcd2573c876c53.js"
-    ],
-    "/layout": [
-      "static/chunks/webpack-fc61431f35deee74.js",
-      "static/chunks/fd9d1056-66408495c002d330.js",
-      "static/chunks/117-e5393ee74aa7f05d.js",
-      "static/chunks/main-app-668b263598a11286.js",
-      "static/css/292494dced870baf.css",
-      "static/chunks/554-f3ca01644c3d5a86.js",
-      "static/chunks/200-36c08df596029e36.js",
-      "static/chunks/474-493d8ebb5b4b33fb.js",
-      "static/chunks/app/layout-77fe39a52621669d.js"
-    ],
-    "/page": [
-      "static/chunks/webpack-fc61431f35deee74.js",
-      "static/chunks/fd9d1056-66408495c002d330.js",
-      "static/chunks/117-e5393ee74aa7f05d.js",
-      "static/chunks/main-app-668b263598a11286.js",
-      "static/chunks/app/page-f8a0ef5d457b6810.js"
-    ],
-    "/(dashboard)/employees/page": [
-      "static/chunks/webpack-fc61431f35deee74.js",
-      "static/chunks/fd9d1056-66408495c002d330.js",
-      "static/chunks/117-e5393ee74aa7f05d.js",
-      "static/chunks/main-app-668b263598a11286.js",
-      "static/chunks/554-f3ca01644c3d5a86.js",
-      "static/chunks/app/(dashboard)/employees/page-9c2bea564bed81ff.js"
+    "/(dashboard)/payroll/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/(dashboard)/payroll/page.js"
     ],
     "/(dashboard)/layout": [
-      "static/chunks/webpack-fc61431f35deee74.js",
-      "static/chunks/fd9d1056-66408495c002d330.js",
-      "static/chunks/117-e5393ee74aa7f05d.js",
-      "static/chunks/main-app-668b263598a11286.js",
-      "static/chunks/451-a374968f2ab099f7.js",
-      "static/chunks/app/(dashboard)/layout-ebd834cecec70e60.js"
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/(dashboard)/layout.js"
     ],
-    "/(auth)/login/page": [
-      "static/chunks/webpack-fc61431f35deee74.js",
-      "static/chunks/fd9d1056-66408495c002d330.js",
-      "static/chunks/117-e5393ee74aa7f05d.js",
-      "static/chunks/main-app-668b263598a11286.js",
-      "static/chunks/451-a374968f2ab099f7.js",
-      "static/chunks/app/(auth)/login/page-3ada6befa9174798.js"
-    ],
-    "/(auth)/layout": [
-      "static/chunks/webpack-fc61431f35deee74.js",
-      "static/chunks/fd9d1056-66408495c002d330.js",
-      "static/chunks/117-e5393ee74aa7f05d.js",
-      "static/chunks/main-app-668b263598a11286.js",
-      "static/chunks/app/(auth)/layout-1038875e2dda7e96.js"
-    ],
-    "/(auth)/register/page": [
-      "static/chunks/webpack-fc61431f35deee74.js",
-      "static/chunks/fd9d1056-66408495c002d330.js",
-      "static/chunks/117-e5393ee74aa7f05d.js",
-      "static/chunks/main-app-668b263598a11286.js",
-      "static/chunks/451-a374968f2ab099f7.js",
-      "static/chunks/app/(auth)/register/page-2e072eac04936453.js"
-    ],
-    "/(dashboard)/leave-credits/page": [
-      "static/chunks/webpack-fc61431f35deee74.js",
-      "static/chunks/fd9d1056-66408495c002d330.js",
-      "static/chunks/117-e5393ee74aa7f05d.js",
-      "static/chunks/main-app-668b263598a11286.js",
-      "static/chunks/604-795d71806fca6469.js",
-      "static/chunks/app/(dashboard)/leave-credits/page-a101167983d751b4.js"
-    ],
-    "/(dashboard)/dashboard/page": [
-      "static/chunks/webpack-fc61431f35deee74.js",
-      "static/chunks/fd9d1056-66408495c002d330.js",
-      "static/chunks/117-e5393ee74aa7f05d.js",
-      "static/chunks/main-app-668b263598a11286.js",
-      "static/chunks/554-f3ca01644c3d5a86.js",
-      "static/chunks/app/(dashboard)/dashboard/page-b54c9680103fa39d.js"
-    ],
-    "/(dashboard)/payroll/advances/page": [
-      "static/chunks/webpack-fc61431f35deee74.js",
-      "static/chunks/fd9d1056-66408495c002d330.js",
-      "static/chunks/117-e5393ee74aa7f05d.js",
-      "static/chunks/main-app-668b263598a11286.js",
-      "static/chunks/604-795d71806fca6469.js",
-      "static/chunks/451-a374968f2ab099f7.js",
-      "static/chunks/app/(dashboard)/payroll/advances/page-1318cd8adee49bf8.js"
-    ],
-    "/(dashboard)/holidays/page": [
-      "static/chunks/webpack-fc61431f35deee74.js",
-      "static/chunks/fd9d1056-66408495c002d330.js",
-      "static/chunks/117-e5393ee74aa7f05d.js",
-      "static/chunks/main-app-668b263598a11286.js",
-      "static/chunks/554-f3ca01644c3d5a86.js",
-      "static/chunks/200-36c08df596029e36.js",
-      "static/chunks/742-3b0150d07b0ddc7c.js",
-      "static/chunks/474-493d8ebb5b4b33fb.js",
-      "static/chunks/649-efdcecfede33e4f3.js",
-      "static/chunks/863-96b9441c51466720.js",
-      "static/chunks/app/(dashboard)/holidays/page-bbda3fac0e7be270.js"
-    ],
-    "/(dashboard)/leaves/page": [
-      "static/chunks/webpack-fc61431f35deee74.js",
-      "static/chunks/fd9d1056-66408495c002d330.js",
-      "static/chunks/117-e5393ee74aa7f05d.js",
-      "static/chunks/main-app-668b263598a11286.js",
-      "static/chunks/604-795d71806fca6469.js",
-      "static/chunks/app/(dashboard)/leaves/page-1f68348de670765d.js"
-    ],
-    "/(dashboard)/overtime/page": [
-      "static/chunks/webpack-fc61431f35deee74.js",
-      "static/chunks/fd9d1056-66408495c002d330.js",
-      "static/chunks/117-e5393ee74aa7f05d.js",
-      "static/chunks/main-app-668b263598a11286.js",
-      "static/chunks/604-795d71806fca6469.js",
-      "static/chunks/app/(dashboard)/overtime/page-4bb5357b6d625955.js"
-    ],
-    "/(dashboard)/settings/page": [
-      "static/chunks/webpack-fc61431f35deee74.js",
-      "static/chunks/fd9d1056-66408495c002d330.js",
-      "static/chunks/117-e5393ee74aa7f05d.js",
-      "static/chunks/main-app-668b263598a11286.js",
-      "static/chunks/554-f3ca01644c3d5a86.js",
-      "static/chunks/app/(dashboard)/settings/page-7d960f6a4a573cdf.js"
-    ],
-    "/(dashboard)/users/page": [
-      "static/chunks/webpack-fc61431f35deee74.js",
-      "static/chunks/fd9d1056-66408495c002d330.js",
-      "static/chunks/117-e5393ee74aa7f05d.js",
-      "static/chunks/main-app-668b263598a11286.js",
-      "static/chunks/app/(dashboard)/users/page-49c929d971a5d5ad.js"
-    ],
-    "/(dashboard)/reports/print-payroll/page": [
-      "static/chunks/webpack-fc61431f35deee74.js",
-      "static/chunks/fd9d1056-66408495c002d330.js",
-      "static/chunks/117-e5393ee74aa7f05d.js",
-      "static/chunks/main-app-668b263598a11286.js",
-      "static/chunks/280273a7-40f226b3760d48c5.js",
-      "static/chunks/164f4fb6-8febed4adc3496e4.js",
-      "static/chunks/118-84c8eac6a033536d.js",
-      "static/chunks/app/(dashboard)/reports/print-payroll/page-44d848c3fe0a00fa.js"
-    ],
-    "/(dashboard)/payroll/page": [
-      "static/chunks/webpack-fc61431f35deee74.js",
-      "static/chunks/fd9d1056-66408495c002d330.js",
-      "static/chunks/117-e5393ee74aa7f05d.js",
-      "static/chunks/main-app-668b263598a11286.js",
-      "static/chunks/app/(dashboard)/payroll/page-e79c323cc3b149e3.js"
-    ],
-    "/(dashboard)/reports/page": [
-      "static/chunks/webpack-fc61431f35deee74.js",
-      "static/chunks/fd9d1056-66408495c002d330.js",
-      "static/chunks/117-e5393ee74aa7f05d.js",
-      "static/chunks/main-app-668b263598a11286.js",
-      "static/chunks/app/(dashboard)/reports/page-e3f4ee552a690a08.js"
-    ],
-    "/(dashboard)/schedules/page": [
-      "static/chunks/webpack-fc61431f35deee74.js",
-      "static/chunks/fd9d1056-66408495c002d330.js",
-      "static/chunks/117-e5393ee74aa7f05d.js",
-      "static/chunks/main-app-668b263598a11286.js",
-      "static/chunks/554-f3ca01644c3d5a86.js",
-      "static/chunks/604-795d71806fca6469.js",
-      "static/chunks/200-36c08df596029e36.js",
-      "static/chunks/742-3b0150d07b0ddc7c.js",
-      "static/chunks/474-493d8ebb5b4b33fb.js",
-      "static/chunks/649-efdcecfede33e4f3.js",
-      "static/chunks/1-c3c3db5331f84235.js",
-      "static/chunks/165-dd04b9901c6b5516.js",
-      "static/chunks/app/(dashboard)/schedules/page-0cf1345c61603b0d.js"
+    "/layout": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/css/app/layout.css",
+      "static/chunks/app/layout.js"
     ],
     "/(dashboard)/time-logs/page": [
-      "static/chunks/webpack-fc61431f35deee74.js",
-      "static/chunks/fd9d1056-66408495c002d330.js",
-      "static/chunks/117-e5393ee74aa7f05d.js",
-      "static/chunks/main-app-668b263598a11286.js",
-      "static/chunks/554-f3ca01644c3d5a86.js",
-      "static/chunks/200-36c08df596029e36.js",
-      "static/chunks/742-3b0150d07b0ddc7c.js",
-      "static/chunks/1-c3c3db5331f84235.js",
-      "static/chunks/app/(dashboard)/time-logs/page-7b08d5ffa2a8d7a4.js"
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/(dashboard)/time-logs/page.js"
+    ],
+    "/(dashboard)/dashboard/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/(dashboard)/dashboard/page.js"
+    ],
+    "/(dashboard)/users/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/(dashboard)/users/page.js"
+    ],
+    "/(dashboard)/employees/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/(dashboard)/employees/page.js"
+    ],
+    "/(dashboard)/holidays/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/(dashboard)/holidays/page.js"
+    ],
+    "/(dashboard)/schedules/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/(dashboard)/schedules/page.js"
+    ],
+    "/(dashboard)/settings/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/(dashboard)/settings/page.js"
+    ],
+    "/(dashboard)/leaves/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/(dashboard)/leaves/page.js"
+    ],
+    "/(dashboard)/payroll/advances/page": [
+      "static/chunks/webpack.js",
+      "static/chunks/main-app.js",
+      "static/chunks/app/(dashboard)/payroll/advances/page.js"
     ]
   }
 }

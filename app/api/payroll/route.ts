@@ -25,15 +25,22 @@ function countWorkingDays(
   holidays: { isActive: boolean; date: Date }[] = []
 ): number {
   let count = 0;
-  const cur = new Date(start);
-  const holidayDates = holidays
-    .filter((h) => h.isActive)
-    .map((h) => new Date(h.date).toLocaleDateString());
+  
+  // Create dates in local timezone to avoid UTC issues
+  const startStr = start.toISOString().split('T')[0];
+  const endStr = end.toISOString().split('T')[0];
+  
+  const holidayDates = new Set(
+    holidays
+      .filter((h) => h.isActive)
+      .map((h) => new Date(h.date).toISOString().split('T')[0])
+  );
 
+  const cur = new Date(start);
   while (cur <= end) {
     const day = cur.getDay();
-    const dateStr = cur.toLocaleDateString();
-    if (day !== 0 && day !== 6 && !holidayDates.includes(dateStr)) {
+    const dateStr = cur.toISOString().split('T')[0];
+    if (day !== 0 && day !== 6 && !holidayDates.has(dateStr)) {
       count++;
     }
     cur.setDate(cur.getDate() + 1);
@@ -59,8 +66,11 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
     }
 
-    const startDate = new Date(periodStart);
-    const endDate = new Date(periodEnd);
+    // Parse dates in local timezone to avoid UTC issues
+    const [startYear, startMonth, startDay] = periodStart.split('-').map(Number);
+    const [endYear, endMonth, endDay] = periodEnd.split('-').map(Number);
+    const startDate = new Date(startYear, startMonth - 1, startDay, 0, 0, 0);
+    const endDate = new Date(endYear, endMonth - 1, endDay, 23, 59, 59);
 
     const includeSSS = deductions.includes('sss');
     const includePhilHealth = deductions.includes('philhealth');
@@ -169,22 +179,102 @@ export async function POST(request: Request) {
           const leaveDays = leaves.reduce((sum, leave) => sum + leave.daysCount, 0);
           
           const workDaysInPeriod = countWorkingDays(startDate, endDate, holidays);
-          const expectedWorkDays = Math.max(0, workDaysInPeriod - leaveDays - offDaysInPeriod);
           
-          const daysWithTimeLog = timeLogs.filter(log => log.clockIn !== null).length;
+          // Calculate holiday pay
+          let holidayPay = 0;
+          let regularHolidayHours = 0;
+          let specialHolidayHours = 0;
+          let regularHolidayDays = 0;
+          let specialHolidayDays = 0;
+          
+          // Create a map of time logs by date for quick lookup
+          const timeLogByDate = new Map<string, typeof timeLogs[0]>();
+          for (const log of timeLogs) {
+            const dateStr = new Date(log.date).toLocaleDateString('en-CA');
+            timeLogByDate.set(dateStr, log);
+          }
+          
+          for (const log of timeLogs) {
+            const holiday = holidays.find(h => {
+              // Use en-CA locale to get consistent YYYY-MM-DD in local timezone
+              const hDateStr = new Date(h.date).toLocaleDateString('en-CA');
+              const logDateStr = new Date(log.date).toLocaleDateString('en-CA');
+              return hDateStr === logDateStr && h.isActive;
+            });
+            
+            if (!holiday) continue;
+            
+            // Check if employee worked on the holiday
+            const workedOnHoliday = log.workHours > 0 && log.clockIn && log.clockOut;
+            
+            if (holiday.type === 'REGULAR') {
+              if (workedOnHoliday) {
+                // Check if employee was present on the day BEFORE the regular holiday
+                // DOLE rule: Employee must report to work or be on paid leave on the day before the holiday
+                const holidayDate = new Date(holiday.date);
+                const dayBefore = new Date(holidayDate);
+                dayBefore.setDate(dayBefore.getDate() - 1);
+                const dayBeforeStr = dayBefore.toLocaleDateString('en-CA');
+                const dayBeforeLog = timeLogByDate.get(dayBeforeStr);
+                const presentDayBefore = dayBeforeLog && dayBeforeLog.clockIn !== null;
+                
+                // If present on day before, eligible for holiday premium
+                if (presentDayBefore) {
+                  regularHolidayHours += log.workHours;
+                  regularHolidayDays += 1;
+                }
+              }
+            } else if (holiday.type === 'SPECIAL') {
+              // Special holiday: no work, no pay - only add if worked on the holiday
+              if (workedOnHoliday) {
+                specialHolidayHours += log.workHours;
+                specialHolidayDays += 1;
+              }
+            }
+          }
+          
+          // Philippine Labor Law holiday pay rates (DOLE):
+          // - REGULAR holiday worked (and present day before): Additional 100% of daily wage
+          // - SPECIAL holiday worked: Additional 30% of daily wage
+          // - The base salary already includes regular pay for worked days
+          if (regularHolidayDays > 0) {
+            holidayPay += regularHolidayDays * dailyRate * 1.0; // Additional 100% (premium only)
+          }
+          if (specialHolidayDays > 0) {
+            holidayPay += specialHolidayDays * dailyRate * 0.3; // Additional 30% (premium only)
+          }
+          holidayPay = Math.round(holidayPay * 100) / 100;
+          
+          // For semi-monthly: fixed 13 days per period, for monthly: 26 days
+          // Off days are added to expected (they're not counted as absences)
+          let expectedWorkDays = 0;
+          if (frequency === 'SEMIMONTHLY') {
+            expectedWorkDays = 13 + offDaysInPeriod;
+          } else if (frequency === 'MONTHLY') {
+            expectedWorkDays = 26 + offDaysInPeriod;
+          } else {
+            expectedWorkDays = Math.max(0, workDaysInPeriod - leaveDays);
+          }
+           
+          // Subtract leave days from expected
+          expectedWorkDays = Math.max(0, expectedWorkDays - leaveDays);
+           
+          const daysWithTimeLog = timeLogs.filter(log => log.clockIn !== null && log.clockOut !== null).length;
           
           let grossPay = 0;
           let otherDeductions = 0;
           
           if (employeePayType === 'DAILY') {
-            grossPay = (daysWithTimeLog * dailyRate) + otPay + adjustmentAdd - adjustmentDeduct;
+            grossPay = (daysWithTimeLog * dailyRate) + otPay + holidayPay + adjustmentAdd - adjustmentDeduct;
           } else {
+            // Gross pay = base salary + OT + holiday pay + adjustments (no deductions yet)
+            grossPay = periodSalary + otPay + holidayPay + adjustmentAdd - adjustmentDeduct;
+            // Absences, lates, and undertime are separate deductions
             const absentDays = Math.max(0, expectedWorkDays - daysWithTimeLog);
             const absenceDeduction = absentDays * dailyRate;
             const lateDeduction = (totalLates / 60) * hourlyRate;
             const undertimeDeduction = (totalUndertime / 60) * hourlyRate;
             otherDeductions = absenceDeduction + lateDeduction + undertimeDeduction;
-            grossPay = periodSalary + otPay - otherDeductions + adjustmentAdd - adjustmentDeduct;
           }
 
           // Using lib/payroll functions for 2026 rates
@@ -233,11 +323,12 @@ export async function POST(request: Request) {
               year: startDate.getFullYear(),
               periodStart: startDate,
               periodEnd: endDate,
-              basicSalary: periodSalary,
+              basicSalary: employeePayType === 'DAILY' ? 0 : periodSalary,
               workDays: expectedWorkDays,
               daysWorked: daysWithTimeLog,
               otHours: totalOtHours,
               otPay,
+              holidayPay,
               grossPay,
               sssEmployee: sss.employeeShare,
               sssEmployer: sss.employerShare,
@@ -246,6 +337,8 @@ export async function POST(request: Request) {
               pagibigEmployee: pagIbig.employeeShare,
               pagibigEmployer: pagIbig.employerShare,
               withholdingTax,
+              lateMinutes: totalLates,
+              undertimeMinutes: totalUndertime,
               otherDeductions: otherDeductions + totalAdvanceDeductions,
               adjustmentAdd,
               adjustmentDeduct,
@@ -392,10 +485,89 @@ export async function POST(request: Request) {
 
     const leaveDays = leaves.reduce((sum, leave) => sum + leave.daysCount, 0);
 
+    // Calculate working days from calendar for reference
     const workDaysInPeriod = countWorkingDays(startDate, endDate, holidays);
-    const expectedWorkDays = Math.max(0, workDaysInPeriod - leaveDays - offDaysInPeriod);
+    
+    // Calculate holiday pay
+    let holidayPay = 0;
+    let regularHolidayHours = 0;
+    let specialHolidayHours = 0;
+    let regularHolidayDays = 0;
+    let specialHolidayDays = 0;
+    
+    // Create a map of time logs by date for quick lookup
+    const timeLogByDate = new Map<string, typeof timeLogs[0]>();
+    for (const log of timeLogs) {
+      const dateStr = new Date(log.date).toLocaleDateString('en-CA');
+      timeLogByDate.set(dateStr, log);
+    }
+    
+    for (const log of timeLogs) {
+      const holiday = holidays.find(h => {
+        // Use en-CA locale to get consistent YYYY-MM-DD in local timezone
+        const hDateStr = new Date(h.date).toLocaleDateString('en-CA');
+        const logDateStr = new Date(log.date).toLocaleDateString('en-CA');
+        return hDateStr === logDateStr && h.isActive;
+      });
+      
+      if (!holiday) continue;
+      
+      // Check if employee worked on the holiday
+      const workedOnHoliday = log.workHours > 0 && log.clockIn && log.clockOut;
+      
+      if (holiday.type === 'REGULAR') {
+        if (workedOnHoliday) {
+          // Check if employee was present on the day BEFORE the regular holiday
+          // DOLE rule: Employee must report to work or be on paid leave on the day before the holiday
+          const holidayDate = new Date(holiday.date);
+          const dayBefore = new Date(holidayDate);
+          dayBefore.setDate(dayBefore.getDate() - 1);
+          const dayBeforeStr = dayBefore.toLocaleDateString('en-CA');
+          const dayBeforeLog = timeLogByDate.get(dayBeforeStr);
+          const presentDayBefore = dayBeforeLog && dayBeforeLog.clockIn !== null;
+          
+          // If present on day before, eligible for holiday premium
+          if (presentDayBefore) {
+            regularHolidayHours += log.workHours;
+            regularHolidayDays += 1;
+          }
+        }
+      } else if (holiday.type === 'SPECIAL') {
+        // Special holiday: no work, no pay - only add if worked on the holiday
+        if (workedOnHoliday) {
+          specialHolidayHours += log.workHours;
+          specialHolidayDays += 1;
+        }
+      }
+    }
+    
+    // Philippine Labor Law holiday pay rates (DOLE):
+    // - REGULAR holiday worked (and present day before): Additional 100% of daily wage
+    // - SPECIAL holiday worked: Additional 30% of daily wage
+    // - The base salary already includes regular pay for worked days
+    if (regularHolidayDays > 0) {
+      holidayPay += regularHolidayDays * dailyRate * 1.0; // Additional 100% (premium only)
+    }
+    if (specialHolidayDays > 0) {
+      holidayPay += specialHolidayDays * dailyRate * 0.3; // Additional 30% (premium only)
+    }
+    holidayPay = Math.round(holidayPay * 100) / 100;
+    
+    // For semi-monthly: fixed 13 days per period, for monthly: 26 days
+    // Off days are added to expected (they're not counted as absences)
+    let expectedWorkDays = 0;
+    if (frequency === 'SEMIMONTHLY') {
+      expectedWorkDays = 13 + offDaysInPeriod;
+    } else if (frequency === 'MONTHLY') {
+      expectedWorkDays = 26 + offDaysInPeriod;
+    } else {
+      expectedWorkDays = Math.max(0, workDaysInPeriod - leaveDays);
+    }
+    
+    // Subtract leave days from expected
+    expectedWorkDays = Math.max(0, expectedWorkDays - leaveDays);
 
-    const daysWithTimeLog = timeLogs.filter(log => log.clockIn !== null).length;
+    const daysWithTimeLog = timeLogs.filter(log => log.clockIn !== null && log.clockOut !== null).length;
     
     let grossPay = 0;
     let otherDeductions = 0;
@@ -405,14 +577,16 @@ export async function POST(request: Request) {
     let absentDays = 0;
     
     if (employeePayType === 'DAILY') {
-      grossPay = (daysWithTimeLog * dailyRate) + otPay + adjustmentAdd - adjustmentDeduct;
+      grossPay = (daysWithTimeLog * dailyRate) + otPay + holidayPay + adjustmentAdd - adjustmentDeduct;
     } else {
+      // Gross pay = base salary + OT + holiday pay + adjustments (no deductions yet)
+      grossPay = periodSalary + otPay + holidayPay + adjustmentAdd - adjustmentDeduct;
+      // Absences, lates, and undertime are separate deductions
       absentDays = Math.max(0, expectedWorkDays - daysWithTimeLog);
       absenceDeduction = absentDays * dailyRate;
       lateDeduction = (totalLates / 60) * hourlyRate;
       undertimeDeduction = (totalUndertime / 60) * hourlyRate;
       otherDeductions = absenceDeduction + lateDeduction + undertimeDeduction;
-      grossPay = periodSalary + otPay - otherDeductions + adjustmentAdd - adjustmentDeduct;
     }
 
     // Using lib/payroll functions for 2026 rates
@@ -461,11 +635,12 @@ export async function POST(request: Request) {
         year: startDate.getFullYear(),
         periodStart: startDate,
         periodEnd: endDate,
-        basicSalary: periodSalary,
+        basicSalary: employeePayType === 'DAILY' ? 0 : (periodSalary || 0),
         workDays: expectedWorkDays,
         daysWorked: daysWithTimeLog,
         otHours: totalOtHours,
         otPay,
+        holidayPay,
         grossPay,
         sssEmployee: sss.employeeShare,
         sssEmployer: sss.employerShare,
@@ -474,6 +649,8 @@ export async function POST(request: Request) {
         pagibigEmployee: pagIbig.employeeShare,
         pagibigEmployer: pagIbig.employerShare,
         withholdingTax,
+        lateMinutes: totalLates,
+        undertimeMinutes: totalUndertime,
         otherDeductions: otherDeductions + totalAdvanceDeductions,
         adjustmentAdd,
         adjustmentDeduct,
@@ -531,14 +708,16 @@ export async function POST(request: Request) {
           frequency,
         },
         earnings: {
-          baseSalary: periodSalary,
+          baseSalary: employeePayType === 'DAILY' ? (daysWithTimeLog * dailyRate) : periodSalary,
           overtimePay: otPay,
+          holidayPay,
           grossPay,
         },
         deductions: {
           absences: absenceDeduction,
           lates: lateDeduction,
           undertime: undertimeDeduction,
+          cashAdvance: totalAdvanceDeductions,
           sss: sss.employeeShare,
           philHealth: philHealth.employeeShare,
           pagIbig: pagIbig.employeeShare,
@@ -547,6 +726,9 @@ export async function POST(request: Request) {
         },
         totals: {
           totalOtHours,
+          holidayDays: regularHolidayDays + specialHolidayDays,
+          regularHolidayDays,
+          specialHolidayDays,
           leaveDays,
           offDays: offDaysInPeriod,
           absentDays,
