@@ -77,7 +77,7 @@ export async function PUT(request: Request) {
 
     const updateData: Record<string, unknown> = {};
     const allowedFields = [
-      'fullName', 'email', 'position', 'department', 'basicSalary', 'dailyRate', 'payType',
+      'employeeId', 'fullName', 'email', 'position', 'department', 'basicSalary', 'dailyRate', 'payType',
       'payrollFrequency', 'managerId', 'hireDate', 'tin', 'sssNo', 'philhealthNo',
       'pagibigNo', 'bankName', 'bankAccountNo', 'isActive', 'employeeStatus', 'regularizationDate'
     ];

@@ -49,6 +49,7 @@ export default function EmployeesPage() {
   const [userRole, setUserRole] = useState<string>('');
   
   const [formData, setFormData] = useState({
+    employeeId: '',
     fullName: '',
     email: '',
     position: '',
@@ -149,7 +150,7 @@ export default function EmployeesPage() {
 
   const resetForm = () => {
     setFormData({
-      fullName: '', email: '', position: '', department: '',
+      employeeId: '', fullName: '', email: '', position: '', department: '',
       payType: 'MONTHLY', basicSalary: '', dailyRate: '',
       payrollFrequency: 'MONTHLY', managerId: '', hireDate: '',
       tin: '', sssNo: '', philhealthNo: '', pagibigNo: '',
@@ -161,6 +162,7 @@ export default function EmployeesPage() {
   const handleEdit = (employee: Employee) => {
     setSelectedEmployee(employee);
     setFormData({
+      employeeId: employee.employeeId,
       fullName: employee.fullName,
       email: employee.email,
       position: employee.position,
@@ -328,6 +330,10 @@ export default function EmployeesPage() {
                   <div className="space-y-1.5">
                     <Label className="text-xs font-bold uppercase text-gray-500">Full Name *</Label>
                     <Input name="fullName" value={formData.fullName} onChange={handleChange} required placeholder="Juan R. Dela Cruz" className="h-11" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-bold uppercase text-gray-500">Employee ID *</Label>
+                    <Input name="employeeId" value={formData.employeeId} onChange={handleChange} required placeholder="EMP-0001" className="h-11" />
                   </div>
                   <div className="space-y-1.5">
                     <Label className="text-xs font-bold uppercase text-gray-500">Work Email *</Label>
