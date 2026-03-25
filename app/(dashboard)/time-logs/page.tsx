@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { Clock, Play, Square, Upload, Download, FileSpreadsheet, LogOut, Search, AlertCircle, CheckCircle2, MapPin, NavigationOff } from 'lucide-react';
+import { Clock, Play, Square, Upload, Download, FileSpreadsheet, LogOut, Search, AlertCircle, CheckCircle2, MapPin, NavigationOff, Trash2 } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -68,6 +68,9 @@ export default function TimeLogsPage() {
   const [officeLocation, setOfficeLocation] = useState<{ name: string; lat: number; lon: number; radius: number } | null>(null);
   const [gpsError, setGpsError] = useState<string | null>(null);
   const [withinRange, setWithinRange] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [timeLogToDelete, setTimeLogToDelete] = useState<TimeLog | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     const getCookies = () => {
@@ -501,6 +504,36 @@ export default function TimeLogsPage() {
     document.cookie = 'userRole=; path=/; expires=Thu, 01 Jan 1970 00:00:00 UTC';
     document.cookie = 'userId=; path=/; expires=Thu, 01 Jan 1970 00:00:00 UTC';
     window.location.href = '/login';
+  };
+
+  const handleDeleteClick = (log: TimeLog) => {
+    setTimeLogToDelete(log);
+    setDeleteDialogOpen(true);
+  };
+
+  const handleDelete = async () => {
+    if (!timeLogToDelete) return;
+
+    setDeleting(true);
+    try {
+      const res = await fetch(`/api/time-logs?id=${timeLogToDelete.id}`, {
+        method: 'DELETE',
+      });
+
+      if (!res.ok) {
+        const data = await res.json();
+        alert(data.error || 'Failed to delete time log');
+        return;
+      }
+
+      fetchTimeLogs();
+      setDeleteDialogOpen(false);
+      setTimeLogToDelete(null);
+    } catch (err) {
+      alert('Something went wrong');
+    } finally {
+      setDeleting(false);
+    }
   };
 
   return (
@@ -957,6 +990,7 @@ export default function TimeLogsPage() {
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Clock Out</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Hours</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Remarks</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200">
@@ -1001,6 +1035,15 @@ export default function TimeLogsPage() {
                               {remarks.label}
                             </Badge>
                           </td>
+                          <td className="px-6 py-4">
+                            <button
+                              onClick={() => handleDeleteClick(log)}
+                              className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                              title="Delete time log"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </td>
                         </tr>
                       );
                     })}
@@ -1010,6 +1053,40 @@ export default function TimeLogsPage() {
           )}
         </div>
       )}
+
+      <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <DialogContent className="sm:max-w-md bg-black border-2 border-yellow-500/50 shadow-[0_0_30px_rgba(234,179,8,0.3)]">
+          <div className="absolute inset-0 bg-gradient-to-br from-yellow-500/10 via-transparent to-red-500/10 pointer-events-none rounded-[inherit]" />
+          <DialogHeader className="relative">
+            <DialogTitle className="text-yellow-400 text-xl font-bold tracking-wide">
+              ⚠️ Delete Time Log
+            </DialogTitle>
+            <DialogDescription className="text-yellow-200/80 text-base mt-2">
+              Are you sure you want to delete the time log for{' '}
+              <span className="font-bold text-yellow-400">{timeLogToDelete?.employee?.fullName}</span> on{' '}
+              <span className="font-bold text-yellow-400">{timeLogToDelete ? formatDate(timeLogToDelete.date) : ''}</span>?
+              <br />
+              <span className="text-red-400 text-sm">This action cannot be undone.</span>
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="relative mt-6">
+            <Button 
+              variant="outline" 
+              onClick={() => setDeleteDialogOpen(false)}
+              className="border-yellow-500/50 text-yellow-400 hover:bg-yellow-500/10 hover:text-yellow-300"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleDelete}
+              disabled={deleting}
+              className="bg-gradient-to-r from-red-600 to-red-700 hover:from-red-500 hover:to-red-600 text-white font-semibold shadow-lg shadow-red-500/30"
+            >
+              {deleting ? 'Deleting...' : 'Delete'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

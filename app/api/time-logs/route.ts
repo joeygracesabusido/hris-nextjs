@@ -279,3 +279,30 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Failed to record time log' }, { status: 500 });
   }
 }
+
+export async function DELETE(request: Request) {
+  try {
+    const cookieStore = await cookies();
+    const userRole = cookieStore.get('userRole')?.value;
+
+    if (userRole !== 'ADMIN' && userRole !== 'MANAGER') {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const { searchParams } = new URL(request.url);
+    const id = searchParams.get('id');
+
+    if (!id) {
+      return NextResponse.json({ error: 'Time log ID is required' }, { status: 400 });
+    }
+
+    await prisma.timeLog.delete({
+      where: { id },
+    });
+
+    return NextResponse.json({ message: 'Time log deleted successfully' });
+  } catch (error) {
+    console.error('Error deleting time log:', error);
+    return NextResponse.json({ error: 'Failed to delete time log' }, { status: 500 });
+  }
+}
