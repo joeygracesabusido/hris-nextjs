@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { startOfDay, endOfDay, parseISO, isValid } from 'date-fns';
 import { cookies } from 'next/headers';
+import { hasAdminAccess } from '@/lib/auth-helpers';
+import { getEmployeeIdForUser } from '@/lib/user-employee-link';
 
 interface PrismaError extends Error {
   code?: string;
@@ -39,24 +41,15 @@ export async function GET(request: NextRequest) {
 
     if (!prisma) throw new Error('Prisma client not initialized');
 
-    // If not admin or manager, filter to only show the logged-in employee's schedule
-    let employeeFilter = {};
-    if (userRole !== 'ADMIN' && userRole !== 'MANAGER') {
-      const user = await prisma.user.findUnique({
-        where: { email: userEmail },
-        include: { employees: true },
-      });
-
-      if (!user || !user.employees || user.employees.length === 0) {
-        return NextResponse.json({ error: 'Employee record not found' }, { status: 404 });
-      }
-
-      employeeFilter = { id: user.employees[0].id };
-    }
+    // Get employee ID for user (with auto-linking)
+    const linkedEmployeeId = userEmail ? await getEmployeeIdForUser(userEmail, userRole || '') : null;
 
     // 1. Fetch Employees
     const employees = await prisma.employee.findMany({
-      where: { isActive: true, ...(userRole !== 'ADMIN' && userRole !== 'MANAGER' ? employeeFilter : {}) },
+      where: { 
+        isActive: true, 
+        ...(hasAdminAccess(userRole || '') ? {} : (linkedEmployeeId ? { id: linkedEmployeeId } : { id: '000000000000000000000000' }))
+      },
       select: {
         id: true,
         fullName: true,
@@ -67,15 +60,16 @@ export async function GET(request: NextRequest) {
     });
 
     // If employee, only fetch their schedules
-    let scheduleEmployeeFilter = {};
-    if (userRole !== 'ADMIN' && userRole !== 'MANAGER') {
-      const user = await prisma.user.findUnique({
-        where: { email: userEmail },
-        include: { employees: true },
-      });
-      if (user && user.employees && user.employees.length > 0) {
-        scheduleEmployeeFilter = { employeeId: user.employees[0].id };
-      }
+    let scheduleEmployeeFilter: Record<string, string> = {};
+    if (hasAdminAccess(userRole || '')) {
+      // Admin roles see all schedules
+      scheduleEmployeeFilter = {};
+    } else if (linkedEmployeeId) {
+      // EMPLOYEE role with linked employee sees only their schedules
+      scheduleEmployeeFilter = { employeeId: linkedEmployeeId };
+    } else {
+      // EMPLOYEE role without linked employee sees nothing
+      scheduleEmployeeFilter = { employeeId: '000000000000000000000000' };
     }
 
     // 2. Fetch Schedules

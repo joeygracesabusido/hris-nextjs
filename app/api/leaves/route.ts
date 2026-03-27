@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { cookies } from 'next/headers';
 import { cache } from '@/lib/redis';
+import { getUserWithEmployee } from '@/lib/user-employee-link';
+import { hasAdminAccess } from '@/lib/auth-helpers';
 
 const LEAVES_CACHE_PREFIX = 'leaves:';
 
@@ -14,15 +16,14 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Always fetch user from DB to ensure role is correct
-    const user = await prisma.user.findUnique({
-      where: { email: userEmail },
-      include: { employees: true },
-    });
+    // Get user with auto-linked employee
+    const result = await getUserWithEmployee(userEmail);
 
-    if (!user) {
+    if (!result || !result.user) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
+
+    const { user, employee } = result;
 
     const cacheKey = `${LEAVES_CACHE_PREFIX}${user.role}:${user.email}`;
     try {
@@ -35,26 +36,21 @@ export async function GET(request: Request) {
     }
 
     let leaves;
-    // If admin, return all leaves
-    if (user.role === 'ADMIN') {
+    // If admin role, return all leaves
+    if (hasAdminAccess(user.role)) {
       leaves = await prisma.leaveRequest.findMany({
         include: { employee: true, approver: true },
         orderBy: { createdAt: 'desc' },
       });
     } else {
-      if (!user.employees || user.employees.length === 0) {
+      if (!employee) {
         return NextResponse.json({ error: 'Employee record not found' }, { status: 404 });
       }
 
-      const employee = user.employees[0];
-
-      // Find leaves filed by this employee OR leaves where this employee is the manager (approver)
+      // EMPLOYEE role only sees their own leaves
       leaves = await prisma.leaveRequest.findMany({
         where: {
-          OR: [
-            { employeeId: employee.id },
-            { approverId: employee.id },
-          ],
+          employeeId: employee.id,
         },
         include: { employee: true, approver: true },
         orderBy: { createdAt: 'desc' },
@@ -87,30 +83,26 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const user = await prisma.user.findUnique({
-      where: { email: userEmail },
-      include: { employees: true },
-    });
+    // Get user with auto-linked employee
+    const result = await getUserWithEmployee(userEmail);
 
-    if (!user) {
+    if (!result || !result.user) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
 
+    const { user, employee } = result;
+
     let targetEmployeeId: string;
 
-    // If Admin provides an employeeId, use it. Otherwise use the currentUser's employee record.
-    if (user.role === 'ADMIN') {
-      targetEmployeeId = providedEmployeeId || user.employees?.[0]?.id;
+    // If admin role provides an employeeId, use it. Otherwise use the currentUser's employee record.
+    if (hasAdminAccess(user.role)) {
+      targetEmployeeId = providedEmployeeId || employee?.id;
     } else {
-      // If NOT an admin but provided an employeeId, check if it's their own.
-      if (providedEmployeeId && providedEmployeeId !== user.employees?.[0]?.id) {
-        return NextResponse.json({ error: 'Unauthorized. Non-admin users can only file leave for themselves.' }, { status: 403 });
-      }
-
-      if (!user.employees || user.employees.length === 0) {
+      // EMPLOYEE role can only file leave for themselves
+      if (!employee) {
         return NextResponse.json({ error: 'Employee record not found' }, { status: 404 });
       }
-      targetEmployeeId = user.employees[0].id;
+      targetEmployeeId = employee.id;
     }
 
     // Determine immediate supervisor (manager) of the target employee
@@ -162,15 +154,14 @@ export async function PUT(request: Request) {
       return NextResponse.json({ error: 'ID and Status are required' }, { status: 400 });
     }
 
-    // Fetch user and their employee record
-    const user = await prisma.user.findUnique({
-      where: { email: userEmail },
-      include: { employees: true },
-    });
+    // Get user with auto-linked employee
+    const result = await getUserWithEmployee(userEmail);
 
-    if (!user) {
+    if (!result || !result.user) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
+
+    const { user } = result;
 
     // Fetch the leave request to check approver
     const leaveRequest = await prisma.leaveRequest.findUnique({
@@ -180,8 +171,6 @@ export async function PUT(request: Request) {
     if (!leaveRequest) {
       return NextResponse.json({ error: 'Leave request not found' }, { status: 404 });
     }
-
-    const employeeId = user.employees?.[0]?.id;
 
     // Only Admin can update the status
     if (user.role !== 'ADMIN') {

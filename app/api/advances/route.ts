@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { PrismaClient } from "@prisma/client";
 import { cookies } from 'next/headers';
 import { cache } from '@/lib/redis';
+import { hasAdminAccess } from '@/lib/auth-helpers';
 
 // Use a fresh client if the singleton is stale
 const localPrisma = new PrismaClient();
@@ -35,6 +36,11 @@ export async function GET(request: Request) {
         include: { 
           employee: true,
           payments: {
+            where: {
+              payrollId: {
+                not: null
+              }
+            },
             orderBy: { paymentDate: 'desc' },
             include: { payroll: true }
           }
@@ -43,9 +49,9 @@ export async function GET(request: Request) {
       return NextResponse.json(advance);
     }
 
-    // If not admin, filter to only show the logged-in employee's advances
+    // If not admin role, filter to only show the logged-in employee's advances
     const where: Record<string, string> = {};
-    if (userRole !== 'ADMIN') {
+    if (!hasAdminAccess(userRole || '')) {
       const user = await localPrisma.user.findUnique({
         where: { email: userEmail },
         include: { employees: true },
@@ -70,7 +76,18 @@ export async function GET(request: Request) {
 
     const advances = await advanceModel.findMany({
       where,
-      include: { employee: true },
+      include: { 
+        employee: true,
+        payments: {
+          where: {
+            payrollId: {
+              not: null
+            }
+          },
+          orderBy: { paymentDate: 'desc' },
+          include: { payroll: true }
+        }
+      },
       orderBy: { createdAt: 'desc' },
     });
 
@@ -96,7 +113,7 @@ export async function POST(request: Request) {
     const cookieStore = await cookies();
     const userRole = cookieStore.get('userRole')?.value;
 
-    if (userRole !== 'ADMIN') {
+    if (!hasAdminAccess(userRole || '')) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
     }
 
@@ -143,7 +160,7 @@ export async function DELETE(request: Request) {
     const cookieStore = await cookies();
     const userRole = cookieStore.get('userRole')?.value;
 
-    if (userRole !== 'ADMIN') {
+    if (!hasAdminAccess(userRole || '')) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
     }
 
@@ -177,7 +194,7 @@ export async function PATCH(request: Request) {
     const cookieStore = await cookies();
     const userRole = cookieStore.get('userRole')?.value;
 
-    if (userRole !== 'ADMIN') {
+    if (!hasAdminAccess(userRole || '')) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
     }
 

@@ -1,14 +1,17 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
-import { 
-  calculateSSS, 
-  calculatePhilHealth, 
-  calculatePagIBIG, 
+import {
+  calculateSSS,
+  calculatePhilHealth,
+  calculatePagIBIG,
   calculateWithholdingTax,
   calculateDailyRate,
   calculateHourlyRate
 } from '@/lib/payroll';
 import { cache } from '@/lib/redis';
+import { cookies } from 'next/headers';
+import { hasAdminAccess } from '@/lib/auth-helpers';
+import { getEmployeeIdForUser } from '@/lib/user-employee-link';
 
 const PAYROLL_CACHE_PREFIX = 'payroll:';
 
@@ -50,6 +53,14 @@ function countWorkingDays(
 
 export async function POST(request: Request) {
   try {
+    // Only ADMIN and HR can compute payroll
+    const cookieStore = await cookies();
+    const userRole = cookieStore.get('userRole')?.value;
+
+    if (userRole !== 'ADMIN' && userRole !== 'HR') {
+      return NextResponse.json({ error: 'Unauthorized. Only admins and HR can compute payroll.' }, { status: 403 });
+    }
+
     const body = await request.json();
     const { 
       employeeId, 
@@ -746,13 +757,24 @@ export async function POST(request: Request) {
 
 export async function GET(request: Request) {
   try {
+    const cookieStore = await cookies();
+    const userRole = cookieStore.get('userRole')?.value;
+    const userEmail = cookieStore.get('userEmail')?.value;
+
+    if (!userEmail) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    // Get employee ID for user (with auto-linking)
+    const linkedEmployeeId = await getEmployeeIdForUser(userEmail, userRole || '');
+
     const { searchParams } = new URL(request.url);
     const employeeId = searchParams.get('employeeId');
     const month = searchParams.get('month');
     const year = searchParams.get('year');
 
-    const cacheKey = `${PAYROLL_CACHE_PREFIX}${employeeId || 'all'}:${month || 'all'}:${year || 'all'}`;
-    
+    const cacheKey = `${PAYROLL_CACHE_PREFIX}${linkedEmployeeId || 'all'}:${employeeId || 'all'}:${month || 'all'}:${year || 'all'}`;
+
     try {
       const cachedPayrolls = await cache.get(cacheKey);
       if (cachedPayrolls) {
@@ -764,7 +786,20 @@ export async function GET(request: Request) {
 
     const where: Record<string, number | string> = {};
 
-    if (employeeId) where.employeeId = employeeId;
+    // EMPLOYEE role: only show their own payrolls
+    if (!hasAdminAccess(userRole || '') && linkedEmployeeId) {
+      where.employeeId = linkedEmployeeId;
+    } else if (employeeId) {
+      // Admin roles can filter by specific employee
+      where.employeeId = employeeId;
+    } else {
+      // Admin roles with no employeeId filter see all payrolls
+      // EMPLOYEE role with no linkedEmployeeId sees nothing
+      if (!hasAdminAccess(userRole || '')) {
+        where.employeeId = '000000000000000000000000';
+      }
+    }
+
     if (month) where.month = parseInt(month);
     if (year) where.year = parseInt(year);
 
@@ -790,6 +825,14 @@ export async function GET(request: Request) {
 
 export async function DELETE(request: Request) {
   try {
+    // Only ADMIN can delete payroll
+    const cookieStore = await cookies();
+    const userRole = cookieStore.get('userRole')?.value;
+
+    if (userRole !== 'ADMIN') {
+      return NextResponse.json({ error: 'Unauthorized. Only admins can delete payroll.' }, { status: 403 });
+    }
+
     const { searchParams } = new URL(request.url);
     const payrollId = searchParams.get('id');
 
@@ -805,6 +848,29 @@ export async function DELETE(request: Request) {
       return NextResponse.json({ error: 'Payroll not found' }, { status: 404 });
     }
 
+    // Get all advance payments for this payroll before deleting
+    const advancePayments = await prisma.advancePayment.findMany({
+      where: { payrollId },
+    });
+
+    // Reverse the deductions by adding back the amounts to each advance
+    for (const payment of advancePayments) {
+      await prisma.advance.update({
+        where: { id: payment.advanceId },
+        data: {
+          remainingBalance: {
+            increment: payment.amount,
+          },
+          status: 'ACTIVE',
+        },
+      });
+    }
+
+    // Delete associated advance payments
+    await prisma.advancePayment.deleteMany({
+      where: { payrollId },
+    });
+
     await prisma.payroll.delete({
       where: { id: payrollId },
     });
@@ -812,8 +878,9 @@ export async function DELETE(request: Request) {
     // Invalidate cache
     try {
       await cache.delByPattern(`${PAYROLL_CACHE_PREFIX}*`);
+      await cache.delByPattern('advances:*');
     } catch (cacheErr) {
-      console.error('Failed to invalidate payroll cache:', cacheErr);
+      console.error('Failed to invalidate cache:', cacheErr);
     }
 
     return NextResponse.json({ message: 'Payroll deleted successfully' });

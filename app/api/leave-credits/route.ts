@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
 import { cookies } from 'next/headers'
+import { hasAdminAccess } from '@/lib/auth-helpers'
 
 export async function GET(request: Request) {
   try {
@@ -24,7 +25,7 @@ export async function GET(request: Request) {
     const employeeId = searchParams.get('employeeId')
     const year = searchParams.get('year') || String(new Date().getFullYear())
 
-    if (user.role === 'ADMIN') {
+    if (hasAdminAccess(user.role)) {
       const targetId = employeeId || user.employees?.[0]?.id
       
       const credits = await prisma.leaveCredit.findMany({
@@ -67,8 +68,8 @@ export async function POST(request: Request) {
       where: { email: userEmail },
     })
 
-    if (user?.role !== 'ADMIN') {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 403 })
+    if (!hasAdminAccess(user?.role || '')) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
     }
 
     const body = await request.json()

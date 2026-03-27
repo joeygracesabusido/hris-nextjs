@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { startOfDay, endOfDay } from 'date-fns';
 import { cookies } from 'next/headers';
+import { buildRoleBasedWhereClause } from '@/lib/auth-helpers';
 
 // Haversine formula to calculate distance between two GPS coordinates
 function calculateDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
@@ -70,23 +71,8 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const employeeIdParam = searchParams.get('employeeId');
 
-    const where: Record<string, unknown> = {};
-
-    // If not admin, filter to only show the logged-in employee's data
-    if (userRole !== 'ADMIN' && userRole !== 'MANAGER') {
-      const user = await prisma.user.findUnique({
-        where: { email: userEmail },
-        include: { employees: true },
-      });
-
-      if (!user || !user.employees || user.employees.length === 0) {
-        return NextResponse.json({ error: 'Employee record not found' }, { status: 404 });
-      }
-
-      where.employeeId = user.employees[0].id;
-    } else if (employeeIdParam) {
-      where.employeeId = employeeIdParam;
-    }
+    // Build role-based where clause
+    const where = await buildRoleBasedWhereClause(userEmail, userRole || '', employeeIdParam ?? undefined);
 
     const timeLogs = await prisma.timeLog.findMany({
       where,

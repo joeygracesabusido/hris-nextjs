@@ -13,6 +13,7 @@
     "db:seed": "tsx prisma/seed.ts",
     "db:push": "prisma db push",
     "leave-accrual": "npx ts-node scripts/run-leave-accrual.ts",
+    "link-users": "tsx scripts/link-users-to-employees.ts",
     "pages:build": "npx @cloudflare/next-on-pages"
   },
   "dependencies": {

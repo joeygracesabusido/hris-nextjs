@@ -1,11 +1,9 @@
 {
-  "/page": "app/page.js",
-  "/api/dashboard/stats/route": "app/api/dashboard/stats/route.js",
   "/api/employees/route": "app/api/employees/route.js",
-  "/api/office-location/route": "app/api/office-location/route.js",
-  "/api/time-logs/route": "app/api/time-logs/route.js",
-  "/api/time-logs/import-xcls/route": "app/api/time-logs/import-xcls/route.js",
-  "/(auth)/login/page": "app/(auth)/login/page.js",
+  "/api/advances/route": "app/api/advances/route.js",
   "/(dashboard)/dashboard/page": "app/(dashboard)/dashboard/page.js",
-  "/(dashboard)/time-logs/page": "app/(dashboard)/time-logs/page.js"
+  "/(dashboard)/users/page": "app/(dashboard)/users/page.js",
+  "/(dashboard)/time-logs/page": "app/(dashboard)/time-logs/page.js",
+  "/(dashboard)/payroll/advances/page": "app/(dashboard)/payroll/advances/page.js",
+  "/(dashboard)/payroll/page": "app/(dashboard)/payroll/page.js"
 }

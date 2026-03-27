@@ -2,15 +2,38 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { cache } from '@/lib/redis';
 import { calculateDailyRate } from '@/lib/payroll';
+import { cookies } from 'next/headers';
+import { getEmployeeIdForUser } from '@/lib/user-employee-link';
 
 const EMPLOYEES_CACHE_KEY = 'employees:all';
 
 export async function GET(request: Request) {
   try {
+    const cookieStore = await cookies();
+    const userRole = cookieStore.get('userRole')?.value;
+    const userEmail = cookieStore.get('userEmail')?.value;
+
+    if (!userEmail) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     const { searchParams } = new URL(request.url);
     const position = searchParams.get('position');
 
-    const whereClause = position ? { position: { contains: position, mode: 'insensitive' as const } } : {};
+    // Get employee ID for user (with auto-linking)
+    const linkedEmployeeId = await getEmployeeIdForUser(userEmail, userRole || '');
+
+    // Build where clause based on role
+    const whereClause: Record<string, unknown> = {};
+
+    if (position) {
+      whereClause.position = { contains: position, mode: 'insensitive' as const };
+    }
+
+    // If employee, only show their own record
+    if (linkedEmployeeId) {
+      whereClause.id = linkedEmployeeId;
+    }
 
     const employees = await prisma.employee.findMany({
       where: whereClause,
@@ -25,6 +48,14 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
+    // Only ADMIN and HR can create employees
+    const cookieStore = await cookies();
+    const userRole = cookieStore.get('userRole')?.value;
+
+    if (userRole !== 'ADMIN' && userRole !== 'HR') {
+      return NextResponse.json({ error: 'Unauthorized. Only admins and HR can create employees.' }, { status: 403 });
+    }
+
     const body = await request.json();
     const {
       fullName, email, position, department, basicSalary, dailyRate, payType,
@@ -70,6 +101,14 @@ export async function POST(request: Request) {
 
 export async function PUT(request: Request) {
   try {
+    // Only ADMIN and HR can update employees
+    const cookieStore = await cookies();
+    const userRole = cookieStore.get('userRole')?.value;
+
+    if (userRole !== 'ADMIN' && userRole !== 'HR') {
+      return NextResponse.json({ error: 'Unauthorized. Only admins and HR can update employees.' }, { status: 403 });
+    }
+
     const body = await request.json();
     const { id } = body;
 
@@ -115,6 +154,14 @@ export async function PUT(request: Request) {
 
 export async function DELETE(request: Request) {
   try {
+    // Only ADMIN can delete employees
+    const cookieStore = await cookies();
+    const userRole = cookieStore.get('userRole')?.value;
+
+    if (userRole !== 'ADMIN') {
+      return NextResponse.json({ error: 'Unauthorized. Only admins can delete employees.' }, { status: 403 });
+    }
+
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id');
     if (!id) return NextResponse.json({ error: 'Employee ID is required' }, { status: 400 });

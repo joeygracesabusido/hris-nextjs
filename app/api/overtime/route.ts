@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { cookies } from 'next/headers';
 import { cache } from '@/lib/redis';
+import { hasAdminAccess } from '@/lib/auth-helpers';
 
 const OVERTIME_CACHE_PREFIX = 'overtime:';
 
@@ -26,14 +27,14 @@ export async function GET(request: Request) {
     }
 
     let overtime;
-    // If admin, return all overtime requests
-    if (userRole === 'ADMIN') {
+    // If admin role, return all overtime requests
+    if (hasAdminAccess(userRole || '')) {
       overtime = await prisma.overtimeRequest.findMany({
         include: { employee: true, approver: true },
         orderBy: { createdAt: 'desc' },
       });
     } else {
-      // For non-admin users, find their employee record
+      // For EMPLOYEE role, find their employee record
       const currentUser = await prisma.user.findUnique({
         where: { email: userEmail },
         include: { employees: true },
@@ -45,13 +46,10 @@ export async function GET(request: Request) {
 
       const employee = currentUser.employees[0];
 
-      // Find overtime filed by this employee OR overtime where this employee is the manager (approver)
+      // EMPLOYEE role only sees their own overtime requests
       overtime = await prisma.overtimeRequest.findMany({
         where: {
-          OR: [
-            { employeeId: employee.id },
-            { approverId: employee.id },
-          ],
+          employeeId: employee.id,
         },
         include: { employee: true, approver: true },
         orderBy: { createdAt: 'desc' },
@@ -101,8 +99,8 @@ export async function POST(request: Request) {
 
     let targetEmployeeId: string;
 
-    // If Admin provides an employeeId, use it. Otherwise use the currentUser's employee record.
-    if (userRole === 'ADMIN' && providedEmployeeId) {
+    // If admin role provides an employeeId, use it. Otherwise use the currentUser's employee record.
+    if (hasAdminAccess(userRole || '') && providedEmployeeId) {
       targetEmployeeId = providedEmployeeId;
     } else {
       if (!currentUser.employees || currentUser.employees.length === 0) {
@@ -170,7 +168,7 @@ export async function PUT(request: Request) {
     const cookieStore = await cookies();
     const userRole = cookieStore.get('userRole')?.value;
 
-    if (userRole !== 'ADMIN') {
+    if (!hasAdminAccess(userRole || '')) {
       return NextResponse.json({ error: 'Unauthorized. Only admins can review overtime.' }, { status: 403 });
     }
 
