@@ -7,11 +7,9 @@
 - **UI**: Radix UI + shadcn/ui + Tailwind CSS
 - **Icons**: Lucide React
 - **Forms**: React Hook Form + Zod validation
-- **State**: Zustand (optional)
 - **Auth**: Cookie-based (custom implementation)
 - **Date handling**: date-fns
 - **Excel/CSV**: xlsx
-- **Caching**: Redis (ioredis)
 
 ---
 
@@ -103,40 +101,65 @@ export async function GET(request: Request) {
 }
 ```
 
+---
+
+## Key Patterns
+
 ### Error Handling
-- Always wrap async ops in try/catch
+- Always wrap async operations in try/catch
 - Log errors with `console.error('Context:', error)`
-- Return meaningful messages with appropriate HTTP status codes
+- Return meaningful error messages with appropriate HTTP status codes
 - Check for Prisma errors: `error instanceof Prisma.PrismaClientKnownRequestError`
 
 ### Role-Based Access Control
-**CRITICAL**: Use `hasAdminAccess()` from `@/lib/auth-helpers` for role checks:
+Use `hasAdminAccess()` from `@/lib/auth-helpers` and `getEmployeeIdForUser()` from `@/lib/user-employee-link`:
 
 ```typescript
 import { hasAdminAccess } from '@/lib/auth-helpers'
-
-// Admin roles (ADMIN, HR, MANAGER) can see all data
-if (hasAdminAccess(userRole || '')) {
-  // Return all records
-}
-
-// EMPLOYEE role only sees their own data
-else {
-  // Filter by linked employee ID
-}
-```
-
-For filtering, use `getEmployeeIdForUser()` from `@/lib/user-employee-link`:
-```typescript
 import { getEmployeeIdForUser } from '@/lib/user-employee-link'
 
-const linkedEmployeeId = await getEmployeeIdForUser(userEmail, userRole || '')
-const records = await prisma.timeLog.findMany({
-  where: linkedEmployeeId ? { employeeId: linkedEmployeeId } : {},
-})
+export async function GET(request: Request) {
+  const cookieStore = await cookies()
+  const userRole = cookieStore.get('userRole')?.value
+  const userEmail = cookieStore.get('userEmail')?.value
+
+  // Admin/HR/MANAGER see all data
+  if (hasAdminAccess(userRole || '')) {
+    // Return all records
+  } else {
+    // EMPLOYEE sees only their own data
+    const linkedEmployeeId = await getEmployeeIdForUser(userEmail || '', userRole || '')
+    // Filter by employeeId
+  }
+}
 ```
 
-### Prisma
+### Date Handling (Manila Timezone)
+**CRITICAL**: Always use Manila timezone for time-related operations:
+
+```typescript
+const MANILA_TIMEZONE = 'Asia/Manila'
+
+function getManilaNow(): Date {
+  const now = new Date()
+  return new Date(now.toLocaleString('en-US', { timeZone: MANILA_TIMEZONE }))
+}
+
+// For date queries
+function getManilaToday(): { start: Date; end: Date } {
+  const now = getManilaNow()
+  return {
+    start: startOfDay(now),
+    end: endOfDay(now),
+  }
+}
+
+// Display: Use getUTCHours/getUTCMinutes for Philippines time
+const hours = date.getUTCHours()
+const minutes = date.getUTCMinutes()
+```
+
+### Prisma (MongoDB)
 ```typescript
 // MongoDB uses @db.ObjectId for references
 const employee = await prisma.employee.findUnique({
@@ -156,17 +179,6 @@ const result = Schema.safeParse(body)
 if (!result.success) {
   return NextResponse.json({ error: result.error.flatten() }, { status: 400 })
 }
-```
-
-### Date Handling
-```typescript
-import { format, parseISO, startOfDay, endOfDay } from 'date-fns'
-
-format(new Date(date), 'MMM dd, yyyy')
-parseISO('2026-01-15')
-
-// Timezone: Store as UTC, display as Philippines time (UTC+8)
-// Use getUTCHours()/setUTCHours() for time computations
 ```
 
 ---
@@ -191,6 +203,17 @@ parseISO('2026-01-15')
 
 ---
 
+## Environment Variables
+
+```env
+DATABASE_URL=mongodb+srv://...
+NEXTAUTH_SECRET=your-secret
+NEXTAUTH_URL=http://localhost:3000
+REDIS_URL=redis://localhost:6379  # Optional
+```
+
+---
+
 ## Development Workflow
 
 1. Create branch for features/fixes
@@ -198,43 +221,3 @@ parseISO('2026-01-15')
 3. Run `npm run lint` before committing
 4. Verify with `npm run build`
 5. Test in dev server
-
----
-
-## Environment Variables
-
-```env
-DATABASE_URL=mongodb+srv://...
-NEXTAUTH_SECRET=your-secret
-NEXTAUTH_URL=http://localhost:3000
-REDIS_URL=redis://localhost:6379  # Optional, caching disabled if not set
-```
-
----
-
-## Key Patterns
-
-### Cache Invalidation
-```typescript
-import { cache } from '@/lib/redis'
-
-// Set cache
-await cache.set(cacheKey, data, 600)  // 10 minutes
-
-// Invalidate pattern
-await cache.delByPattern(`${CACHE_PREFIX}*`)
-```
-
-### Date Range Queries
-```typescript
-import { startOfDay, endOfDay, parseISO } from 'date-fns'
-
-const start = startOfDay(parseISO(startDate))
-const end = endOfDay(parseISO(endDate))
-
-const records = await prisma.timeLog.findMany({
-  where: {
-    date: { gte: start, lte: end },
-  },
-})
-```
