@@ -4,6 +4,22 @@ import { startOfDay, endOfDay } from 'date-fns';
 import { cookies } from 'next/headers';
 import { buildRoleBasedWhereClause } from '@/lib/auth-helpers';
 
+const MANILA_TIMEZONE = 'Asia/Manila';
+
+function getManilaNow(): Date {
+  const now = new Date();
+  const manilaTime = new Date(now.toLocaleString('en-US', { timeZone: MANILA_TIMEZONE }));
+  return manilaTime;
+}
+
+function getManilaToday(): { start: Date; end: Date } {
+  const now = getManilaNow();
+  return {
+    start: startOfDay(now),
+    end: endOfDay(now),
+  };
+}
+
 // Haversine formula to calculate distance between two GPS coordinates
 function calculateDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
   const R = 6371e3; // Earth's radius in meters
@@ -173,9 +189,8 @@ export async function POST(request: Request) {
       );
     }
 
-    const now = new Date();
-    const todayStart = startOfDay(now);
-    const todayEnd = endOfDay(now);
+    const now = getManilaNow();
+    const { start: todayStart, end: todayEnd } = getManilaToday();
 
     const existingLog = await prisma.timeLog.findFirst({
       where: {
@@ -201,7 +216,7 @@ export async function POST(request: Request) {
 
       if (schedule?.shift && !schedule.shift.isOff && schedule.shift.startTime !== '-') {
         const [sHour, sMin] = schedule.shift.startTime.split(':').map(Number);
-        const scheduledTime = new Date(now);
+        const scheduledTime = new Date(now.getTime());
         scheduledTime.setHours(sHour, sMin, 0, 0);
         
         const diffMs = now.getTime() - scheduledTime.getTime();
