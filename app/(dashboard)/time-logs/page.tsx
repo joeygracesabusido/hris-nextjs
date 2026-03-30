@@ -22,6 +22,8 @@ interface Employee {
   employeeNumber: number;
   fullName: string;
   employeeId: string;
+  email?: string;
+  userId?: string;
 }
 
 interface Shift {
@@ -87,11 +89,12 @@ export default function TimeLogsPage() {
       return { 
         loggedIn: cookies.isLoggedIn === 'true',
         role: cookies.userRole || '',
-        id: cookies.userId || ''
+        id: cookies.userId || '',
+        email: cookies.userEmail || ''
       };
     };
     
-    const { loggedIn, role, id } = getCookies();
+    const { loggedIn, role, id, email } = getCookies();
     if (!loggedIn) {
       if (typeof window !== 'undefined') {
         window.location.href = '/login';
@@ -100,7 +103,7 @@ export default function TimeLogsPage() {
     }
     setUserRole(role || '');
     setUserId(id || '');
-    fetchEmployees();
+    fetchEmployees(role || '', email || '');
     fetchTimeLogs();
     fetchOfficeLocation();
     getUserLocation();
@@ -138,17 +141,19 @@ export default function TimeLogsPage() {
   const fetchOfficeLocation = async () => {
     try {
       const res = await fetch('/api/office-location');
-      if (res.ok) {
-        const locations = await res.json();
-        const activeLocation = locations.find((loc: { isActive: boolean; name: string; latitude: number; longitude: number; radius: number }) => loc.isActive);
-        if (activeLocation) {
-          setOfficeLocation({
-            name: activeLocation.name,
-            lat: activeLocation.latitude,
-            lon: activeLocation.longitude,
-            radius: activeLocation.radius,
-          });
-        }
+      if (!res.ok) {
+        console.error('Failed to fetch office location:', res.statusText);
+        return;
+      }
+      const locations = await res.json();
+      const activeLocation = locations.find((loc: { isActive: boolean; name: string; latitude: number; longitude: number; radius: number }) => loc.isActive);
+      if (activeLocation) {
+        setOfficeLocation({
+          name: activeLocation.name,
+          lat: activeLocation.latitude,
+          lon: activeLocation.longitude,
+          radius: activeLocation.radius,
+        });
       }
     } catch (err) {
       console.error('Failed to fetch office location:', err);
@@ -209,10 +214,20 @@ export default function TimeLogsPage() {
     }
   }, [userLocation, officeLocation]);
 
-  const fetchEmployees = async () => {
+  const fetchEmployees = async (role: string, email: string) => {
     try {
       const res = await fetch('/api/employees');
       const data = await res.json();
+      
+      if (role === 'EMPLOYEE' && email) {
+        const myEmployee = data.find((emp: Employee) => emp.email === email || emp.userId);
+        if (myEmployee) {
+          setEmployeeId(myEmployee.id);
+          setEmployees([myEmployee]);
+          return;
+        }
+      }
+      
       setEmployees(data);
       if (data.length > 0) {
         setEmployeeId(data[0].id);
@@ -228,13 +243,13 @@ export default function TimeLogsPage() {
       return;
     }
 
-    if (!userLocation) {
+    if (!userLocation && officeLocation) {
       alert('Please enable location services to clock in');
       getUserLocation();
       return;
     }
 
-    if (!withinRange && officeLocation) {
+    if (officeLocation && !withinRange) {
       alert(`You must be within ${officeLocation.radius} meters of ${officeLocation.name} to clock in.\nCurrent distance: ${Math.round(distance || 0)} meters`);
       return;
     }
@@ -247,8 +262,8 @@ export default function TimeLogsPage() {
         body: JSON.stringify({ 
           employeeId, 
           type: 'clockIn',
-          latitude: userLocation.lat,
-          longitude: userLocation.lon,
+          latitude: userLocation?.lat,
+          longitude: userLocation?.lon,
         }),
       });
 
@@ -274,13 +289,13 @@ export default function TimeLogsPage() {
       return;
     }
 
-    if (!userLocation) {
+    if (!userLocation && officeLocation) {
       alert('Please enable location services to clock out');
       getUserLocation();
       return;
     }
 
-    if (!withinRange && officeLocation) {
+    if (officeLocation && !withinRange) {
       alert(`You must be within ${officeLocation.radius} meters of ${officeLocation.name} to clock out.\nCurrent distance: ${Math.round(distance || 0)} meters`);
       return;
     }
@@ -293,8 +308,8 @@ export default function TimeLogsPage() {
         body: JSON.stringify({ 
           employeeId, 
           type: 'clockOut',
-          latitude: userLocation.lat,
-          longitude: userLocation.lon,
+          latitude: userLocation?.lat,
+          longitude: userLocation?.lon,
         }),
       });
 
@@ -371,8 +386,8 @@ export default function TimeLogsPage() {
     }
   };
 
-  const canClockIn = (!todayLog || !todayLog.clockIn) && withinRange && userLocation;
-  const canClockOut = (todayLog && todayLog.clockIn && !todayLog.clockOut) && withinRange && userLocation;
+  const canClockIn = (!todayLog || !todayLog.clockIn) && (!officeLocation || (withinRange && userLocation));
+  const canClockOut = (todayLog && todayLog.clockIn && !todayLog.clockOut) && (!officeLocation || (withinRange && userLocation));
 
   const downloadTemplate = async () => {
     try {
@@ -1009,37 +1024,56 @@ export default function TimeLogsPage() {
           </div>
 
           {/* GPS Status */}
-          {officeLocation && (
-            <div className={`w-full max-w-md rounded-lg p-4 border-2 ${
-              withinRange 
+          <div className={`w-full max-w-md rounded-lg p-4 border-2 ${
+            !officeLocation 
+              ? 'bg-blue-50 border-blue-200'
+              : withinRange 
                 ? 'bg-green-50 border-green-200' 
                 : gpsError
                   ? 'bg-red-50 border-red-200'
                   : 'bg-yellow-50 border-yellow-200'
-            }`}>
-              <div className="flex items-center gap-3">
-                {withinRange ? (
-                  <CheckCircle2 className="w-8 h-8 text-green-600" />
-                ) : (
-                  <NavigationOff className="w-8 h-8 text-red-600" />
-                )}
-                <div className="flex-1">
-                  <p className="font-semibold text-gray-900">
-                    {withinRange ? 'Within Clock-In Range' : 'Outside Clock-In Range'}
-                  </p>
-                  <p className="text-sm text-gray-600">
-                    {gpsError ? (
-                      <span className="text-red-600">{gpsError}</span>
-                    ) : distance !== null ? (
-                      `Distance: ${Math.round(distance)}m from ${officeLocation.name} (Required: ${officeLocation.radius}m)`
-                    ) : (
-                      'Getting location...'
-                    )}
-                  </p>
-                </div>
+          }`}>
+            <div className="flex items-center gap-3">
+              {!officeLocation ? (
+                <MapPin className="w-8 h-8 text-blue-600" />
+              ) : withinRange ? (
+                <CheckCircle2 className="w-8 h-8 text-green-600" />
+              ) : (
+                <NavigationOff className="w-8 h-8 text-red-600" />
+              )}
+              <div className="flex-1">
+                <p className="font-semibold text-gray-900">
+                  {!officeLocation 
+                    ? 'GPS Not Required' 
+                    : withinRange 
+                      ? 'Within Clock-In Range' 
+                      : 'Outside Clock-In Range'}
+                </p>
+                <p className="text-sm text-gray-600">
+                  {!officeLocation ? (
+                    'No office location configured. Clock-in is allowed from anywhere.'
+                  ) : gpsError ? (
+                    <span className="text-red-600">{gpsError}</span>
+                  ) : userLocation === null ? (
+                    'Click refresh to get your location'
+                  ) : distance !== null ? (
+                    `Distance: ${Math.round(distance)}m from ${officeLocation.name} (Required: ${officeLocation.radius}m)`
+                  ) : (
+                    'Getting location...'
+                  )}
+                </p>
               </div>
+              {officeLocation && (
+                <button 
+                  onClick={getUserLocation}
+                  className="p-2 hover:bg-white/50 rounded-lg transition-colors"
+                  title="Refresh location"
+                >
+                  <NavigationOff className="w-5 h-5 text-gray-500" />
+                </button>
+              )}
             </div>
-          )}
+          </div>
 
           {/* Employee Selector */}
           <div className="w-full max-w-md">

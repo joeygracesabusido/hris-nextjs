@@ -23,11 +23,12 @@ export async function GET() {
   try {
     const cookieStore = await cookies();
     const userRole = cookieStore.get('userRole')?.value;
+    const isLoggedIn = cookieStore.get('isLoggedIn')?.value;
 
-    if (!userRole || !['ADMIN', 'HR'].includes(userRole)) {
+    if (!isLoggedIn) {
       return NextResponse.json(
-        { error: 'Unauthorized: Admin or HR access required' },
-        { status: 403 }
+        { error: 'Unauthorized' },
+        { status: 401 }
       );
     }
 
