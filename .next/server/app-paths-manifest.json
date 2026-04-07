@@ -1,9 +1,7 @@
 {
-  "/api/advances/route": "app/api/advances/route.js",
-  "/api/employees/route": "app/api/employees/route.js",
-  "/(dashboard)/payroll/advances/page": "app/(dashboard)/payroll/advances/page.js",
-  "/(dashboard)/payroll/page": "app/(dashboard)/payroll/page.js",
+  "/_not-found/page": "app/_not-found/page.js",
+  "/(auth)/login/page": "app/(auth)/login/page.js",
   "/(dashboard)/settings/page": "app/(dashboard)/settings/page.js",
-  "/(dashboard)/time-logs/page": "app/(dashboard)/time-logs/page.js",
-  "/(dashboard)/employees/page": "app/(dashboard)/employees/page.js"
+  "/(dashboard)/users/page": "app/(dashboard)/users/page.js",
+  "/(dashboard)/dashboard/page": "app/(dashboard)/dashboard/page.js"
 }
