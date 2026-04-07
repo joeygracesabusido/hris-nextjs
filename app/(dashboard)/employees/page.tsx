@@ -92,7 +92,7 @@ export default function EmployeesPage() {
 
   const fetchEmployees = async () => {
     try {
-      const res = await fetch('/api/employees');
+      const res = await fetch('/api/employees', { credentials: 'include' });
       const data = await res.json();
       console.log('API Response status:', res.status);
       console.log('API Response data type:', typeof data, Array.isArray(data));

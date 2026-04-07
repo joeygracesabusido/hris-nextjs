@@ -51,7 +51,7 @@ export default function SettingsPage() {
 
   const fetchLocations = async () => {
     try {
-      const res = await fetch('/api/office-location');
+      const res = await fetch('/api/office-location', { credentials: 'include' });
       if (res.ok) {
         const data = await res.json();
         setLocations(data);

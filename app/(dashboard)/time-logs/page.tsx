@@ -123,7 +123,7 @@ export default function TimeLogsPage() {
 
   const fetchTimeLogs = async () => {
     try {
-      const res = await fetch('/api/time-logs');
+      const res = await fetch('/api/time-logs', { credentials: 'include' });
       if (!res.ok) {
         console.error('Failed to fetch time logs:', res.statusText);
         setTimeLogs([]);
@@ -140,7 +140,7 @@ export default function TimeLogsPage() {
 
   const fetchOfficeLocation = async () => {
     try {
-      const res = await fetch('/api/office-location');
+      const res = await fetch('/api/office-location', { credentials: 'include' });
       if (!res.ok) {
         console.error('Failed to fetch office location:', res.statusText);
         return;
@@ -216,7 +216,7 @@ export default function TimeLogsPage() {
 
   const fetchEmployees = async (role: string, email: string) => {
     try {
-      const res = await fetch('/api/employees');
+      const res = await fetch('/api/employees', { credentials: 'include' });
       const data = await res.json();
       
       if (role === 'EMPLOYEE' && email) {

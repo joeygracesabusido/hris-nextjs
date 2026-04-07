@@ -69,7 +69,7 @@ export default function AdvancesPage() {
 
   const fetchAdvances = async () => {
     try {
-      const res = await fetch('/api/advances');
+      const res = await fetch('/api/advances', { credentials: 'include' });
       if (!res.ok) throw new Error('Failed to fetch advances');
       const data = await res.json();
       setAdvances(data);
@@ -82,7 +82,7 @@ export default function AdvancesPage() {
 
   const fetchEmployees = async () => {
     try {
-      const res = await fetch('/api/employees');
+      const res = await fetch('/api/employees', { credentials: 'include' });
       if (!res.ok) throw new Error('Failed to fetch employees');
       const data = await res.json();
       setEmployees(data);

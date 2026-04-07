@@ -107,8 +107,8 @@ export default function ShiftSchedulePage() {
       console.log(`[Fetch] Range: ${startStr} to ${endStr}`);
       
       const [shiftsRes, schedulesRes] = await Promise.all([
-        fetch('/api/shifts'),
-        fetch(`/api/schedules?startDate=${startStr}&endDate=${endStr}`)
+        fetch('/api/shifts', { credentials: 'include' }),
+        fetch(`/api/schedules?startDate=${startStr}&endDate=${endStr}`, { credentials: 'include' })
       ]);
 
       const checkResponse = async (res: Response, name: string) => {

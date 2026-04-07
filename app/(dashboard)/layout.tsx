@@ -2,21 +2,45 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { LayoutDashboard, Users, DollarSign, Clock, FileText, LogOut, Menu, UserCheck, CalendarDays, Timer, Wallet, Settings, Calendar, Award, ChevronDown, Printer } from 'lucide-react';
+import { LayoutDashboard, Users, DollarSign, Clock, FileText, LogOut, Menu, UserCheck, CalendarDays, Timer, Wallet, Settings, Calendar, Award, ChevronDown, Printer, Package } from 'lucide-react';
+import { LucideIcon } from 'lucide-react';
 import { useState, useEffect } from 'react';
+
+interface NavItem {
+  href: string;
+  label: string;
+  icon: LucideIcon;
+  adminOnly?: boolean;
+  subItems?: NavItem[];
+}
 
 const navItems = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { href: '/users', label: 'Users', icon: UserCheck },
-  { href: '/employees', label: 'Employees', icon: Users },
-  { href: '/schedules', label: 'Shift Schedule', icon: CalendarDays },
-  { href: '/leave-credits', label: 'Leave Credits', icon: Award },
-  { href: '/leaves', label: 'Leaves', icon: CalendarDays },
-  { href: '/overtime', label: 'Overtime', icon: Timer },
-  { href: '/payroll', label: 'Payroll', icon: DollarSign },
-  { href: '/payroll/advances', label: 'Advances', icon: Wallet },
-  { href: '/time-logs', label: 'Time Logs', icon: Clock },
-  { href: '/holidays', label: 'Holidays', icon: Calendar, adminOnly: true },
+  {
+    href: '/hris',
+    label: 'HRIS',
+    icon: Users,
+    subItems: [
+      { href: '/users', label: 'Users', icon: UserCheck },
+      { href: '/employees', label: 'Employees', icon: Users },
+      { href: '/schedules', label: 'Shift Schedule', icon: CalendarDays },
+      { href: '/leave-credits', label: 'Leave Credits', icon: Award },
+      { href: '/leaves', label: 'Leaves', icon: CalendarDays },
+      { href: '/overtime', label: 'Overtime', icon: Timer },
+      { href: '/time-logs', label: 'Time Logs', icon: Clock },
+      { href: '/holidays', label: 'Holidays', icon: Calendar, adminOnly: true },
+      { href: '/asset-inventory', label: 'Asset Inventory', icon: Package },
+    ],
+  },
+  {
+    href: '/payroll',
+    label: 'Payroll',
+    icon: DollarSign,
+    subItems: [
+      { href: '/payroll', label: 'Payroll', icon: DollarSign },
+      { href: '/payroll/advances', label: 'Advances', icon: Wallet },
+    ],
+  },
   {
     href: '/reports',
     label: 'Reports',
@@ -36,6 +60,8 @@ export default function DashboardLayout({
 }) {
   const pathname = usePathname();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [hrisOpen, setHrisOpen] = useState(false);
+  const [payrollOpen, setPayrollOpen] = useState(false);
   const [reportsOpen, setReportsOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
   const [userRole, setUserRole] = useState('');
@@ -54,6 +80,12 @@ export default function DashboardLayout({
   }, []);
 
   const filteredNavItems = navItems.filter((item) => {
+    if (item.subItems) {
+      if (item.adminOnly && userRole !== 'ADMIN' && userRole !== 'HR') {
+        return false;
+      }
+      return true;
+    }
     if (userRole === 'EMPLOYEE') {
       return !['/users', '/employees', '/reports', '/settings'].includes(item.href);
     }
@@ -96,13 +128,34 @@ export default function DashboardLayout({
             const Icon = item.icon;
 
             if (item.subItems) {
+              const isHrisActive = pathname.startsWith('/users') || pathname.startsWith('/employees') || pathname.startsWith('/schedules') || pathname.startsWith('/leave-credits') || pathname.startsWith('/leaves') || pathname.startsWith('/overtime') || pathname.startsWith('/time-logs') || pathname.startsWith('/holidays');
+              const isPayrollActive = pathname.startsWith('/payroll');
               const isReportsActive = pathname.startsWith('/reports');
+              
+              let isActive = false;
+              let open: boolean;
+              let setOpen: (val: boolean) => void;
+              
+              if (item.href === '/hris') {
+                isActive = isHrisActive;
+                open = hrisOpen;
+                setOpen = setHrisOpen;
+              } else if (item.href === '/payroll') {
+                isActive = isPayrollActive;
+                open = payrollOpen;
+                setOpen = setPayrollOpen;
+              } else {
+                isActive = isReportsActive;
+                open = reportsOpen;
+                setOpen = setReportsOpen;
+              }
+
               return (
                 <div key={item.href}>
                   <button
-                    onClick={() => setReportsOpen(!reportsOpen)}
+                    onClick={() => setOpen(!open)}
                     className={`flex items-center justify-between w-full px-3 py-2.5 rounded-lg mb-1 ${
-                      isReportsActive
+                      isActive
                         ? 'bg-blue-600 text-white'
                         : 'text-slate-300 hover:bg-slate-800 hover:text-white'
                     }`}
@@ -111,9 +164,14 @@ export default function DashboardLayout({
                       <Icon className="w-5 h-5" />
                       <span>{item.label}</span>
                     </div>
-                    <ChevronDown className={`w-4 h-4 transition-transform ${reportsOpen ? 'rotate-180' : ''}`} />
+                    <ChevronDown className={`w-4 h-4 transition-transform ${open ? 'rotate-180' : ''}`} />
                   </button>
-                  {reportsOpen && item.subItems.map((subItem) => {
+                  {open && (item.subItems as NavItem[]).filter((subItem) => {
+                    if (subItem.adminOnly && userRole !== 'ADMIN' && userRole !== 'HR') {
+                      return false;
+                    }
+                    return true;
+                  }).map((subItem) => {
                     const SubIcon = subItem.icon;
                     const isActive = pathname === subItem.href;
                     return (
@@ -122,7 +180,6 @@ export default function DashboardLayout({
                         href={subItem.href}
                         onClick={() => {
                           setSidebarOpen(false);
-                          setReportsOpen(false);
                         }}
                         className={`flex items-center gap-3 pl-10 pr-3 py-2 rounded-lg mb-1 ${
                           isActive ? 'bg-blue-600 text-white' : 'text-slate-300 hover:bg-slate-800'

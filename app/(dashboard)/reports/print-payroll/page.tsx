@@ -95,7 +95,7 @@ export default function PrintPayrollPage() {
 
   const fetchEmployees = async (accountantSetter: (employees: Employee[]) => void, managerSetter: (employees: Employee[]) => void) => {
     try {
-      const res = await fetch('/api/employees');
+      const res = await fetch('/api/employees', { credentials: 'include' });
       if (res.ok) {
         const data: Employee[] = await res.json();
         accountantSetter(data);
@@ -108,7 +108,7 @@ export default function PrintPayrollPage() {
 
   const fetchPayrollRecords = async () => {
     try {
-      const res = await fetch('/api/payroll');
+      const res = await fetch('/api/payroll', { credentials: 'include' });
       if (res.ok) {
         const data = await res.json();
         setPayrollRecords(data);

@@ -37,7 +37,7 @@ export default function DashboardPage() {
     
     async function fetchStats() {
       try {
-        const response = await fetch('/api/dashboard/stats');
+        const response = await fetch('/api/dashboard/stats', { credentials: 'include' });
         const data = await response.json();
         setStats(data);
       } catch (error) {
