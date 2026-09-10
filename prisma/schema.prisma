@@ -27,6 +27,11 @@ enum Role {
 enum EmployeeStatus {
   PROBATIONARY   // 6 months trial period
   REGULAR        // Permanently employed
+  CONTRACTUAL    // Fixed-term / project-based
+  RESIGNED       // Voluntarily separated
+  TERMINATED     // Involuntarily separated
+  RETIRED        // Retired
+  AWOL           // Absent without leave / separated
 }
 
 /// User model for authentication
@@ -84,6 +89,16 @@ model Employee {
   sssNo         String
   philhealthNo  String
   pagibigNo     String
+
+  // Standard PH 201-file fields (all optional for backward compatibility)
+  address               String?
+  contactNumber         String?
+  birthDate             DateTime?
+  gender                String?   // MALE, FEMALE
+  civilStatus           String?   // SINGLE, MARRIED, WIDOWED, SEPARATED
+  emergencyContactName  String?
+  emergencyContactPhone String?
+  employmentType        String?   // FULL_TIME, PART_TIME, CONTRACTUAL, PROBATIONARY
 
   bankName      String?
   bankAccountNo String?
@@ -354,6 +369,10 @@ model TimeLog {
   lateMinutes Float     @default(0)
   undertimeMinutes Float @default(0)
 
+  // Night differential (Labor Code Art. 86, 22:00–06:00, +10%)
+  nightDiffHours Float @default(0)
+  nightDiffPay   Float @default(0)
+
   clockInLatitude   Float?
   clockInLongitude  Float?
   clockOutLatitude  Float?
@@ -391,15 +410,21 @@ model Payroll {
   otHours         Float     @default(0)
   otPay           Float     @default(0)
   holidayPay      Float     @default(0)
+  regularHolidayPay Float   @default(0)
+  specialHolidayPay Float   @default(0)
+  nightDiffHours  Float     @default(0)
+  nightDiffPay    Float     @default(0)
 
   grossPay        Float     @default(0)
 
   sssEmployee     Float     @default(0)
   sssEmployer     Float     @default(0)
+  sssEC           Float     @default(0)
   philhealthEmployee Float  @default(0)
   philhealthEmployer Float  @default(0)
   pagibigEmployee Float     @default(0)
   pagibigEmployer Float     @default(0)
+  taxableIncome   Float     @default(0)
 
   withholdingTax Float     @default(0)
 

@@ -6,7 +6,8 @@ import {
   calculatePagIBIG,
   calculateWithholdingTax,
   calculateDailyRate,
-  calculateHourlyRate
+  calculateHourlyRate,
+  prorateStatutoryForFrequency,
 } from '@/lib/payroll';
 import { cache } from '@/lib/redis';
 import { cookies } from 'next/headers';
@@ -163,9 +164,22 @@ export async function POST(request: Request) {
               date: { gte: startDate, lte: endDate },
             },
           });
-          const totalRequestOtHours = approvedOtRequests.reduce((sum, req) => sum + req.hours, 0);
 
-          const totalOtHours = totalLogOtHours + totalRequestOtHours;
+          // Avoid double-counting: TimeLog OT and OvertimeRequest for the same date
+          // refer to the same work. Prefer the TimeLog entry when both exist.
+          const logOtDates = new Set(
+            approvedOvertimeLogs.map((log) =>
+              new Date(log.date).toLocaleDateString('en-CA')
+            )
+          );
+          const nonOverlappingRequestHours = approvedOtRequests
+            .filter(
+              (req) =>
+                !logOtDates.has(new Date(req.date).toLocaleDateString('en-CA'))
+            )
+            .reduce((sum, req) => sum + req.hours, 0);
+
+          const totalOtHours = totalLogOtHours + nonOverlappingRequestHours;
           const totalLates = timeLogs.reduce((sum, log) => sum + (log.lateMinutes || 0), 0);
           const totalUndertime = timeLogs.reduce((sum, log) => sum + (log.undertimeMinutes || 0), 0);
 
@@ -235,8 +249,12 @@ export async function POST(request: Request) {
                   regularHolidayDays += 1;
                 }
               }
-            } else if (holiday.type === 'SPECIAL') {
-              // Special holiday: no work, no pay - only add if worked on the holiday
+            } else if (
+              holiday.type === 'SPECIAL' ||
+              holiday.type === 'SPECIAL_NON_WORK' ||
+              (holiday as { type: string }).type === 'SPECIAL_NON_WORKING'
+            ) {
+              // Special / special non-working: no work, no pay - only add if worked
               if (workedOnHoliday) {
                 specialHolidayHours += log.workHours;
                 specialHolidayDays += 1;
@@ -246,7 +264,7 @@ export async function POST(request: Request) {
           
           // Philippine Labor Law holiday pay rates (DOLE):
           // - REGULAR holiday worked (and present day before): Additional 100% of daily wage
-          // - SPECIAL holiday worked: Additional 30% of daily wage
+          // - SPECIAL / SPECIAL_NON_WORK worked: Additional 30% of daily wage
           // - The base salary already includes regular pay for worked days
           if (regularHolidayDays > 0) {
             holidayPay += regularHolidayDays * dailyRate * 1.0; // Additional 100% (premium only)
@@ -288,10 +306,25 @@ export async function POST(request: Request) {
             otherDeductions = absenceDeduction + lateDeduction + undertimeDeduction;
           }
 
-          // Using lib/payroll functions for 2026 rates
-          const sss = includeSSS ? calculateSSS(monthlySalary) : { employeeShare: 0, employerShare: 0 };
-          const philHealth = includePhilHealth ? calculatePhilHealth(monthlySalary) : { employeeShare: 0, employerShare: 0 };
-          const pagIbig = includePagIBIG ? calculatePagIBIG(monthlySalary) : { employeeShare: 0, employerShare: 0 };
+          // Using lib/payroll functions for 2026 rates.
+          // Standard PH semimonthly practice: statutory shares are split per cut-off
+          // so the month totals once (avoids double-charging on 2 runs/month).
+          const sssFull = includeSSS ? calculateSSS(monthlySalary) : { employeeShare: 0, employerShare: 0, employerEC: 0 };
+          const philHealthFull = includePhilHealth ? calculatePhilHealth(monthlySalary) : { employeeShare: 0, employerShare: 0 };
+          const pagIbigFull = includePagIBIG ? calculatePagIBIG(monthlySalary) : { employeeShare: 0, employerShare: 0 };
+          const sss = {
+            employeeShare: prorateStatutoryForFrequency(sssFull.employeeShare, frequency),
+            employerShare: prorateStatutoryForFrequency(sssFull.employerShare, frequency),
+            employerEC: prorateStatutoryForFrequency((sssFull as { employerEC?: number }).employerEC || 0, frequency),
+          };
+          const philHealth = {
+            employeeShare: prorateStatutoryForFrequency(philHealthFull.employeeShare, frequency),
+            employerShare: prorateStatutoryForFrequency(philHealthFull.employerShare, frequency),
+          };
+          const pagIbig = {
+            employeeShare: prorateStatutoryForFrequency(pagIbigFull.employeeShare, frequency),
+            employerShare: prorateStatutoryForFrequency(pagIbigFull.employerShare, frequency),
+          };
           
           const totalGovDeductions = sss.employeeShare + philHealth.employeeShare + pagIbig.employeeShare;
           const taxableIncome = grossPay - totalGovDeductions;
@@ -342,7 +375,7 @@ export async function POST(request: Request) {
               holidayPay,
               grossPay,
               sssEmployee: sss.employeeShare,
-              sssEmployer: sss.employerShare,
+              sssEmployer: sss.employerShare + ((sss as { employerEC?: number }).employerEC || 0),
               philhealthEmployee: philHealth.employeeShare,
               philhealthEmployer: philHealth.employerShare,
               pagibigEmployee: pagIbig.employeeShare,
@@ -469,9 +502,20 @@ export async function POST(request: Request) {
         date: { gte: startDate, lte: endDate },
       },
     });
-    const totalRequestOtHours = approvedOtRequests.reduce((sum, req) => sum + req.hours, 0);
 
-    const totalOtHours = totalLogOtHours + totalRequestOtHours;
+    // Avoid double-counting: TimeLog OT and OvertimeRequest for the same date
+    const logOtDates = new Set(
+      approvedOvertimeLogs.map((log) =>
+        new Date(log.date).toLocaleDateString('en-CA')
+      )
+    );
+    const nonOverlappingRequestHours = approvedOtRequests
+      .filter(
+        (req) => !logOtDates.has(new Date(req.date).toLocaleDateString('en-CA'))
+      )
+      .reduce((sum, req) => sum + req.hours, 0);
+
+    const totalOtHours = totalLogOtHours + nonOverlappingRequestHours;
 
     const totalLates = timeLogs.reduce((sum, log) => sum + (log.lateMinutes || 0), 0);
     const totalUndertime = timeLogs.reduce((sum, log) => sum + (log.undertimeMinutes || 0), 0);
@@ -543,8 +587,12 @@ export async function POST(request: Request) {
             regularHolidayDays += 1;
           }
         }
-      } else if (holiday.type === 'SPECIAL') {
-        // Special holiday: no work, no pay - only add if worked on the holiday
+      } else if (
+        holiday.type === 'SPECIAL' ||
+        holiday.type === 'SPECIAL_NON_WORK' ||
+        (holiday as { type: string }).type === 'SPECIAL_NON_WORKING'
+      ) {
+        // Special / special non-working: no work, no pay - only add if worked
         if (workedOnHoliday) {
           specialHolidayHours += log.workHours;
           specialHolidayDays += 1;
@@ -554,7 +602,7 @@ export async function POST(request: Request) {
     
     // Philippine Labor Law holiday pay rates (DOLE):
     // - REGULAR holiday worked (and present day before): Additional 100% of daily wage
-    // - SPECIAL holiday worked: Additional 30% of daily wage
+    // - SPECIAL / SPECIAL_NON_WORK worked: Additional 30% of daily wage
     // - The base salary already includes regular pay for worked days
     if (regularHolidayDays > 0) {
       holidayPay += regularHolidayDays * dailyRate * 1.0; // Additional 100% (premium only)
@@ -600,10 +648,24 @@ export async function POST(request: Request) {
       otherDeductions = absenceDeduction + lateDeduction + undertimeDeduction;
     }
 
-    // Using lib/payroll functions for 2026 rates
-    const sss = includeSSS ? calculateSSS(monthlySalary) : { employeeShare: 0, employerShare: 0 };
-    const philHealth = includePhilHealth ? calculatePhilHealth(monthlySalary) : { employeeShare: 0, employerShare: 0 };
-    const pagIbig = includePagIBIG ? calculatePagIBIG(monthlySalary) : { employeeShare: 0, employerShare: 0 };
+    // Using lib/payroll functions for 2026 rates.
+    // Standard PH semimonthly practice: statutory shares are split per cut-off.
+    const sssFull = includeSSS ? calculateSSS(monthlySalary) : { employeeShare: 0, employerShare: 0, employerEC: 0 };
+    const philHealthFull = includePhilHealth ? calculatePhilHealth(monthlySalary) : { employeeShare: 0, employerShare: 0 };
+    const pagIbigFull = includePagIBIG ? calculatePagIBIG(monthlySalary) : { employeeShare: 0, employerShare: 0 };
+    const sss = {
+      employeeShare: prorateStatutoryForFrequency(sssFull.employeeShare, frequency),
+      employerShare: prorateStatutoryForFrequency(sssFull.employerShare, frequency),
+      employerEC: prorateStatutoryForFrequency((sssFull as { employerEC?: number }).employerEC || 0, frequency),
+    };
+    const philHealth = {
+      employeeShare: prorateStatutoryForFrequency(philHealthFull.employeeShare, frequency),
+      employerShare: prorateStatutoryForFrequency(philHealthFull.employerShare, frequency),
+    };
+    const pagIbig = {
+      employeeShare: prorateStatutoryForFrequency(pagIbigFull.employeeShare, frequency),
+      employerShare: prorateStatutoryForFrequency(pagIbigFull.employerShare, frequency),
+    };
 
     const totalGovDeductions = sss.employeeShare + philHealth.employeeShare + pagIbig.employeeShare;
 
@@ -654,7 +716,7 @@ export async function POST(request: Request) {
         holidayPay,
         grossPay,
         sssEmployee: sss.employeeShare,
-        sssEmployer: sss.employerShare,
+        sssEmployer: sss.employerShare + ((sss as { employerEC?: number }).employerEC || 0),
         philhealthEmployee: philHealth.employeeShare,
         philhealthEmployer: philHealth.employerShare,
         pagibigEmployee: pagIbig.employeeShare,

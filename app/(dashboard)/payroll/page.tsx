@@ -628,10 +628,10 @@ export default function PayrollPage() {
             </label>
             <div className="flex flex-wrap gap-4 p-4 bg-gray-50 rounded-lg border border-dashed">
               {[
-                { id: 'sss', label: 'SSS' },
-                { id: 'philhealth', label: 'PhilHealth' },
-                { id: 'pagibig', label: 'Pag-IBIG' },
-                { id: 'tax', label: 'Withholding Tax' },
+                { id: 'sss', label: 'SSS (incl. EC P10/P30)' },
+                { id: 'philhealth', label: 'PhilHealth 5%' },
+                { id: 'pagibig', label: 'Pag-IBIG (max P200)' },
+                { id: 'tax', label: 'Withholding Tax (TRAIN)' },
                 { id: 'cash_advance', label: 'Cash Advance' },
                 { id: 'sss_loan', label: 'SSS Loan' },
                 { id: 'pagibig_loan', label: 'Pag-IBIG Loan' },

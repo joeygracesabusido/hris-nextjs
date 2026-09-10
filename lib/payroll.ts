@@ -80,6 +80,8 @@ export function calculateSSS(monthlySalary: number): {
   msc: number
   employeeShare: number
   employerShare: number
+  employerEC: number
+  wispMSC: number
   total: number
 } {
   if (monthlySalary < 0) throw new Error('Monthly salary cannot be negative')
@@ -87,8 +89,12 @@ export function calculateSSS(monthlySalary: number): {
   const msc = bracket?.msc ?? (monthlySalary <= 5250 ? 5000 : 35000)
   const employeeShare = Math.round(msc * 0.05 * 100) / 100
   const employerShare = Math.round(msc * 0.10 * 100) / 100
-  const total = Math.round(msc * 0.15 * 100) / 100
-  return { msc, employeeShare, employerShare, total }
+  // Employees' Compensation per SSS schedule: P10 (MSC <= 14,500), else P30
+  const employerEC = msc <= 14500 ? 10 : 30
+  // Amount above P20,000 MSC is allocated to WISP / MySSS Pension Booster (informational)
+  const wispMSC = Math.max(0, Math.min(msc, 35000) - 20000)
+  const total = Math.round((msc * 0.15 + employerEC) * 100) / 100
+  return { msc, employeeShare, employerShare, employerEC, wispMSC, total }
 }
 
 // ============================================================================
@@ -138,10 +144,10 @@ const TAX_TABLE_2026 = {
     { min: 0, max: 20833, baseTax: 0, percentage: 0, threshold: 0 },
     { min: 20833.01, max: 33333, baseTax: 0, percentage: 15, threshold: 20833 },
     { min: 33333.01, max: 66667, baseTax: 1875, percentage: 20, threshold: 33333 },
-    { min: 66667.01, max: 166667, baseTax: 8541.67, percentage: 25, threshold: 66667 },
-    { min: 166667.01, max: 666667, baseTax: 33541.67, percentage: 30, threshold: 166667 },
-    { min: 666667.01, max: Infinity, baseTax: 183541.67, percentage: 35, threshold: 666667 },
-  ]
+    { min: 66667.01, max: 166667, baseTax: 8541.8, percentage: 25, threshold: 66667 },
+    { min: 166667.01, max: 666667, baseTax: 33541.8, percentage: 30, threshold: 166667 },
+    { min: 666667.01, max: Infinity, baseTax: 183541.8, percentage: 35, threshold: 666667 },
+  ],
 };
 
 export function calculateDailyRate(monthlySalary: number): number {
@@ -150,6 +156,37 @@ export function calculateDailyRate(monthlySalary: number): number {
 
 export function calculateHourlyRate(monthlySalary: number): number {
   return calculateDailyRate(monthlySalary) / 8;
+}
+
+/**
+ * Prorate a monthly statutory share per payroll frequency.
+ * Standard PH semimonthly practice: half per cut-off so the month totals once.
+ */
+export function prorateStatutoryForFrequency(monthlyAmount: number, frequency: string): number {
+  if (frequency === 'SEMIMONTHLY') return Math.round(((monthlyAmount || 0) / 2) * 100) / 100;
+  return Math.round((monthlyAmount || 0) * 100) / 100;
+}
+
+/** Night differential: +10% of hourly rate for 22:00–06:00 work (Labor Code Art. 86). */
+export function calculateNightDifferentialPay(nightHours: number, hourlyRate: number): number {
+  if (nightHours <= 0 || hourlyRate <= 0) return 0;
+  return Math.round(nightHours * hourlyRate * 0.1 * 100) / 100;
+}
+
+/** DOLE overtime multipliers. */
+export function calculateOTPayByType(
+  hours: number,
+  hourlyRate: number,
+  multiplier = 1.25
+): number {
+  if (hours <= 0 || hourlyRate <= 0) return 0;
+  return Math.round(hours * hourlyRate * multiplier * 100) / 100;
+}
+
+/** 13th-month pay: total basic earned in the calendar year / 12 (PD 851). */
+export function calculate13thMonthPay(totalBasicEarnedInYear: number): number {
+  if (totalBasicEarnedInYear <= 0) return 0;
+  return Math.round((totalBasicEarnedInYear / 12) * 100) / 100;
 }
 
 export function calculateWithholdingTax(taxableIncome: number, frequency: string = 'MONTHLY'): number {
@@ -302,7 +339,7 @@ export function formatCurrency(amount: number): string {
 // HOLIDAY PAY CALCULATIONS (Philippine Labor Law)
 // ============================================================================
 
-export type HolidayType = 'REGULAR' | 'SPECIAL' | 'SPECIAL_NON_WORKING'
+export type HolidayType = 'REGULAR' | 'SPECIAL' | 'SPECIAL_NON_WORK' | 'SPECIAL_NON_WORKING'
 
 export interface Holiday {
   id: string
@@ -320,28 +357,27 @@ export function getHolidayPayMultiplier(
   holidayType: HolidayType,
   isWorking: boolean
 ): number {
+  const normalized = holidayType === 'SPECIAL_NON_WORKING' ? 'SPECIAL_NON_WORK' : holidayType
   if (!isWorking) {
-    // No work, no pay rules
-    switch (holidayType) {
+    // No work, no pay rules (DOLE)
+    switch (normalized) {
       case 'REGULAR':
         return 1.0 // 100% - paid even if no work (Holiday Pay Law)
       case 'SPECIAL':
-        return 1.0 // 100% - paid even if no work
-      case 'SPECIAL_NON_WORKING':
-        return 0 // No pay if no work
+      case 'SPECIAL_NON_WORK':
+        return 0 // No pay if unworked
       default:
         return 0
     }
   }
 
   // Working on holiday
-  switch (holidayType) {
+  switch (normalized) {
     case 'REGULAR':
       return 2.0 // 200% for first 8 hours
     case 'SPECIAL':
-      return 1.5 // 150% for first 8 hours
-    case 'SPECIAL_NON_WORKING':
-      return 1.0 // Normal pay
+    case 'SPECIAL_NON_WORK':
+      return 1.3 // 130% for first 8 hours
     default:
       return 1.0
   }
@@ -355,7 +391,8 @@ export function getHolidayOTMultiplier(
   holidayType: HolidayType,
   otHourNumber: number // 1-8 for first 8 hours, 9+ for excess
 ): number {
-  switch (holidayType) {
+  const normalized = holidayType === 'SPECIAL_NON_WORKING' ? 'SPECIAL_NON_WORK' : holidayType
+  switch (normalized) {
     case 'REGULAR':
       // Regular Holiday OT: 30% premium over 200% rate
       if (otHourNumber <= 8) {
@@ -364,15 +401,12 @@ export function getHolidayOTMultiplier(
       return 2.0 * 1.625 // 325% for excess over 8 hours
     
     case 'SPECIAL':
-      // Special Day OT: 30% premium over 150% rate
+    case 'SPECIAL_NON_WORK':
+      // Special / Special non-working OT: 30% premium over 130% rate
       if (otHourNumber <= 8) {
-        return 1.5 * 1.30 // 195% (150% + 30% of 150%)
+        return 1.3 * 1.30 // 169%
       }
-      return 1.5 * 1.625 // 243.75% for excess over 8 hours
-    
-    case 'SPECIAL_NON_WORKING':
-      // Special Non-Working: normal OT rate (25% premium)
-      return 1.25
+      return 1.3 * 1.625
     
     default:
       return 1.25 // Normal OT rate

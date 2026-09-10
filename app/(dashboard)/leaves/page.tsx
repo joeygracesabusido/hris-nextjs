@@ -444,11 +444,16 @@ export default function LeavesPage() {
                 <label className="block text-sm font-medium text-gray-700 mb-1">Leave Type *</label>
                 <select name="leaveType" value={formData.leaveType} onChange={handleChange} required
                   className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500">
-                  <option value="VACATION">Vacation Leave</option>
-                  <option value="SICK">Sick Leave</option>
+                  <option value="VACATION">Vacation Leave (15/yr company)</option>
+                  <option value="SICK">Sick Leave (15/yr company)</option>
+                  <option value="SIL">Service Incentive Leave — 5 days (Art. 95)</option>
                   <option value="EMERGENCY">Emergency Leave</option>
-                  <option value="MATERNITY">Maternity Leave</option>
-                  <option value="PATERNITY">Paternity Leave</option>
+                  <option value="MATERNITY">Maternity — 105 days (RA 11210)</option>
+                  <option value="PATERNITY">Paternity — 7 days (RA 8187)</option>
+                  <option value="SOLO_PARENT">Solo Parent — 7 days (RA 11861)</option>
+                  <option value="VAWC">VAWC — 10 days (RA 9262)</option>
+                  <option value="MAGNA_CARTA">Magna Carta / Gyne — 60 days (RA 9710)</option>
+                  <option value="UNPAID">Unpaid / LWOP</option>
                   <option value="OTHER">Other</option>
                 </select>
               </div>

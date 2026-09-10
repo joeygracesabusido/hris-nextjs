@@ -5,9 +5,15 @@ export function middleware(request: NextRequest) {
   const isLoggedIn = request.cookies.get('isLoggedIn')?.value;
   const { pathname } = request.nextUrl;
 
-  const publicPaths = ['/login', '/register', '/api/login', '/api/register'];
-  
+  const publicPaths = ['/login', '/register', '/forgot-password', '/auth/sync', '/api/login', '/api/register'];
+
   if (publicPaths.includes(pathname)) {
+    return NextResponse.next();
+  }
+
+  // NextAuth endpoints (signin / callback / session) must stay public,
+  // otherwise the Google OAuth flow gets redirected to /login mid-flight
+  if (pathname.startsWith('/api/auth/')) {
     return NextResponse.next();
   }
 

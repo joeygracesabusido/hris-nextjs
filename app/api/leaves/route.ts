@@ -4,6 +4,7 @@ import { cookies } from 'next/headers';
 import { cache } from '@/lib/redis';
 import { getUserWithEmployee } from '@/lib/user-employee-link';
 import { hasAdminAccess } from '@/lib/auth-helpers';
+import { PHILIPPINE_LEAVE_CODES, getLeaveTypeDef } from '@/lib/ph-standards';
 
 const LEAVES_CACHE_PREFIX = 'leaves:';
 
@@ -111,14 +112,36 @@ export async function POST(request: Request) {
       select: { managerId: true },
     });
 
+    // Validate against PH statutory leave types (DOLE / RA 11210 / RA 8187 / RA 11861 / RA 9262 / RA 9710)
+    const normalizedType = String(leaveType || '').toUpperCase();
+    if (!PHILIPPINE_LEAVE_CODES.includes(normalizedType as never)) {
+      return NextResponse.json(
+        { error: `Invalid leave type. Must be one of: ${PHILIPPINE_LEAVE_CODES.join(', ')}` },
+        { status: 400 }
+      );
+    }
+
+    const days = parseFloat(daysCount);
+    if (!Number.isFinite(days) || days <= 0) {
+      return NextResponse.json({ error: 'daysCount must be a positive number' }, { status: 400 });
+    }
+
+    const def = getLeaveTypeDef(normalizedType);
+    if (def?.statutoryDays && days > def.statutoryDays) {
+      return NextResponse.json(
+        { error: `${def.label} exceeds statutory maximum of ${def.statutoryDays} days (${def.law})` },
+        { status: 400 }
+      );
+    }
+
     const leaveRequest = await prisma.leaveRequest.create({
       data: {
         employeeId: targetEmployeeId,
         approverId: targetEmployee?.managerId, // Set to manager if exists
-        leaveType,
+        leaveType: normalizedType,
         startDate: new Date(startDate),
         endDate: new Date(endDate),
-        daysCount: parseFloat(daysCount),
+        daysCount: days,
         reason,
         status: 'PENDING',
       },

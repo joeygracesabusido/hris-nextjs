@@ -7,12 +7,15 @@
 import { NextAuthOptions } from 'next-auth'
 import CredentialsProvider from 'next-auth/providers/credentials'
 import GoogleProvider from 'next-auth/providers/google'
-import { PrismaAdapter } from '@next-auth/prisma-adapter'
 import bcrypt from 'bcryptjs'
 import prisma from '@/lib/prisma'
 
 export const authOptions: NextAuthOptions = {
-  adapter: PrismaAdapter(prisma),
+  // NOTE: No PrismaAdapter here on purpose. This app uses JWT sessions plus
+  // its own cookie auth (isLoggedIn/userRole/...). The adapter would require
+  // Account/Session/VerificationToken models that don't exist in the schema.
+  // Google users are auto-provisioned in the `signIn` callback below and then
+  // bridged to the app cookies via POST /api/auth/google-sync.
 
   providers: [
     // Credentials Provider (Email/Password)
@@ -96,11 +99,24 @@ export const authOptions: NextAuthOptions = {
 
   callbacks: {
     async jwt({ token, user, trigger, session }) {
-      // Initial sign in - add user data to token
-      if (user) {
-        token.id = user.id
-        token.role = user.role
-        token.employeeId = user.employeeId ?? null
+      // Initial sign in - add user data to token.
+      // For Google OAuth, `user` is the Google profile (no role), so look up
+      // the provisioned DB user to attach id/role.
+      if (user?.email) {
+        if ((user as { role?: string }).role) {
+          token.id = user.id
+          token.role = (user as { role: string }).role
+          token.employeeId = (user as { employeeId?: string | null }).employeeId ?? null
+        } else {
+          const dbUser = await prisma.user.findUnique({
+            where: { email: user.email.toLowerCase() },
+            select: { id: true, role: true },
+          })
+          if (dbUser) {
+            token.id = dbUser.id
+            token.role = dbUser.role
+          }
+        }
       }
 
       // Handle session updates
@@ -115,25 +131,29 @@ export const authOptions: NextAuthOptions = {
     async session({ session, token }) {
       // Add token data to session
       if (token) {
-        session.user.id = token.id as string
-        session.user.role = token.role as string
-        session.user.employeeId = token.employeeId as string | null
+        session.user.id = (token.id as string) || ''
+        session.user.role = (token.role as string) || 'EMPLOYEE'
+        session.user.employeeId = (token.employeeId as string | null) ?? null
       }
       return session
     },
 
     async signIn({ user, account }) {
-      // For OAuth providers, check if user exists
-      if (account?.provider !== 'credentials') {
+      // For OAuth providers, auto-provision a user record if needed.
+      // Approval (FOR_APPROVAL/REJECTED) is enforced later in
+      // POST /api/auth/google-sync so the login page can show a message.
+      if (account?.provider && account.provider !== 'credentials') {
+        if (!user.email) return false
+        const email = user.email.toLowerCase()
         const existingUser = await prisma.user.findUnique({
-          where: { email: user.email! },
+          where: { email },
         })
         if (!existingUser) {
-          // Create new user with default role
+          // Create new user with default role (status defaults to FOR_APPROVAL)
           await prisma.user.create({
             data: {
-              email: user.email!,
-              username: user.email!,
+              email,
+              username: email,
               name: user.name,
               image: user.image,
               role: 'EMPLOYEE',

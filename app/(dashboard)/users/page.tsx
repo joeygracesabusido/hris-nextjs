@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Check, X, Clock, UserCheck, UserX, Shield, Briefcase, Users, UserCog } from 'lucide-react';
+import { Check, X, Clock, UserCheck, UserX, Shield, Briefcase, Users, UserCog, KeyRound, Copy } from 'lucide-react';
 
 type UserRole = 'ADMIN' | 'HR' | 'MANAGER' | 'EMPLOYEE';
 
@@ -23,6 +23,12 @@ export default function UsersPage() {
   const [userRole, setUserRole] = useState('');
   const [editingUserId, setEditingUserId] = useState<string | null>(null);
   const [newRole, setNewRole] = useState<UserRole>('EMPLOYEE');
+  const [resetUser, setResetUser] = useState<User | null>(null);
+  const [customPassword, setCustomPassword] = useState('');
+  const [resetting, setResetting] = useState(false);
+  const [resetResult, setResetResult] = useState<{ tempPassword: string; generated: boolean } | null>(null);
+  const [resetError, setResetError] = useState('');
+  const [copied, setCopied] = useState(false);
 
   const fetchUsers = async () => {
     try {
@@ -91,6 +97,60 @@ export default function UsersPage() {
   const startEditingRole = (user: User) => {
     setEditingUserId(user.id);
     setNewRole(user.role);
+  };
+
+  const openResetModal = (user: User) => {
+    setResetUser(user);
+    setCustomPassword('');
+    setResetResult(null);
+    setResetError('');
+    setCopied(false);
+  };
+
+  const closeResetModal = () => {
+    setResetUser(null);
+    setCustomPassword('');
+    setResetResult(null);
+    setResetError('');
+    setCopied(false);
+  };
+
+  const handleResetPassword = async () => {
+    if (!resetUser) return;
+    setResetting(true);
+    setResetError('');
+    try {
+      const res = await fetch('/api/users/reset-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: resetUser.id,
+          ...(customPassword.trim() ? { newPassword: customPassword.trim() } : {}),
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setResetError(data.error || 'Failed to reset password');
+        return;
+      }
+      setResetResult({ tempPassword: data.tempPassword, generated: data.generated });
+    } catch (error) {
+      console.error('Failed to reset password:', error);
+      setResetError('Something went wrong. Please try again.');
+    } finally {
+      setResetting(false);
+    }
+  };
+
+  const copyTempPassword = async () => {
+    if (!resetResult) return;
+    try {
+      await navigator.clipboard.writeText(resetResult.tempPassword);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      setResetError('Copy failed — select the password manually.');
+    }
   };
 
   const cancelRoleEdit = () => {
@@ -309,24 +369,35 @@ export default function UsersPage() {
                     {new Date(user.createdAt).toLocaleDateString()}
                   </td>
                   <td className="px-6 py-4">
-                    {userRole === 'ADMIN' && user.status === 'FOR_APPROVAL' && (
-                      <div className="flex gap-2">
+                    <div className="flex gap-2">
+                      {userRole === 'ADMIN' && user.status === 'FOR_APPROVAL' && (
+                        <>
+                          <button
+                            onClick={() => handleStatusChange(user.id, 'APPROVED')}
+                            className="p-2 bg-green-100 text-green-600 rounded-lg hover:bg-green-200 transition-colors"
+                            title="Approve"
+                          >
+                            <Check className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => handleStatusChange(user.id, 'REJECTED')}
+                            className="p-2 bg-red-100 text-red-600 rounded-lg hover:bg-red-200 transition-colors"
+                            title="Reject"
+                          >
+                            <X className="w-4 h-4" />
+                          </button>
+                        </>
+                      )}
+                      {canEditRoles && (
                         <button
-                          onClick={() => handleStatusChange(user.id, 'APPROVED')}
-                          className="p-2 bg-green-100 text-green-600 rounded-lg hover:bg-green-200 transition-colors"
-                          title="Approve"
+                          onClick={() => openResetModal(user)}
+                          className="p-2 bg-amber-100 text-amber-700 rounded-lg hover:bg-amber-200 transition-colors"
+                          title="Reset password"
                         >
-                          <Check className="w-4 h-4" />
+                          <KeyRound className="w-4 h-4" />
                         </button>
-                        <button
-                          onClick={() => handleStatusChange(user.id, 'REJECTED')}
-                          className="p-2 bg-red-100 text-red-600 rounded-lg hover:bg-red-200 transition-colors"
-                          title="Reject"
-                        >
-                          <X className="w-4 h-4" />
-                        </button>
-                      </div>
-                    )}
+                      )}
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -334,6 +405,84 @@ export default function UsersPage() {
           </table>
         )}
       </div>
+
+      {/* Reset password modal */}
+      {resetUser && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-md bg-white rounded-2xl shadow-xl p-6">
+            <h2 className="text-lg font-bold text-gray-900">Reset password</h2>
+            <p className="text-sm text-gray-500 mt-1">
+              {resetUser.name || resetUser.username} · {resetUser.email}
+            </p>
+
+            {resetError && (
+              <div className="mt-4 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
+                {resetError}
+              </div>
+            )}
+
+            {resetResult ? (
+              <div className="mt-4">
+                <p className="text-sm text-gray-600">
+                  {resetResult.generated
+                    ? 'Temporary password generated — share it securely. It is shown only once:'
+                    : 'Password updated to:'}
+                </p>
+                <div className="mt-2 flex items-center gap-2">
+                  <code className="flex-1 px-3 py-2.5 bg-gray-900 text-green-300 font-mono text-sm rounded-lg break-all">
+                    {resetResult.tempPassword}
+                  </code>
+                  <button
+                    onClick={copyTempPassword}
+                    className="p-2.5 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors shrink-0"
+                    title="Copy password"
+                  >
+                    {copied ? <Check className="w-4 h-4 text-green-600" /> : <Copy className="w-4 h-4 text-gray-600" />}
+                  </button>
+                </div>
+                <p className="mt-3 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                  Any lockout on this account was cleared. Ask the user to sign in and
+                  request a password of their choice afterwards.
+                </p>
+                <button
+                  onClick={closeResetModal}
+                  className="mt-4 w-full py-2.5 bg-gray-900 text-white rounded-lg font-medium hover:bg-gray-800 transition-colors"
+                >
+                  Done
+                </button>
+              </div>
+            ) : (
+              <div className="mt-4">
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                  New password <span className="text-gray-400 font-normal">(optional — blank auto-generates one)</span>
+                </label>
+                <input
+                  type="text"
+                  value={customPassword}
+                  onChange={(e) => setCustomPassword(e.target.value)}
+                  placeholder="Leave blank to auto-generate"
+                  className="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                />
+                <div className="mt-4 flex gap-2">
+                  <button
+                    onClick={closeResetModal}
+                    className="flex-1 py-2.5 border border-gray-300 rounded-lg font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleResetPassword}
+                    disabled={resetting}
+                    className="flex-1 py-2.5 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors disabled:opacity-50"
+                  >
+                    {resetting ? 'Resetting...' : 'Reset password'}
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
