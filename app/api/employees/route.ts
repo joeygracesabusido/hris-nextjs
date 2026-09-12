@@ -37,6 +37,15 @@ export async function GET(request: Request) {
 
     const employees = await prisma.employee.findMany({
       where: whereClause,
+      include: {
+        employeeFace: {
+          select: {
+            id: true,
+            photoUrl: true,
+            registeredAt: true,
+          },
+        },
+      },
       orderBy: { createdAt: 'desc' },
     });
     return NextResponse.json(employees);

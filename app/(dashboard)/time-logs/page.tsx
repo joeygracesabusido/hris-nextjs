@@ -1,7 +1,8 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { Clock, Play, Square, Upload, Download, FileSpreadsheet, LogOut, Search, AlertCircle, CheckCircle2, MapPin, NavigationOff, Trash2 } from 'lucide-react';
+import Link from 'next/link';
+import { Clock, Play, Square, Upload, Download, FileSpreadsheet, LogOut, Search, AlertCircle, CheckCircle2, MapPin, NavigationOff, Trash2, Camera } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import {
   Dialog,
@@ -40,6 +41,8 @@ interface TimeLog {
   clockIn: string | null;
   clockOut: string | null;
   workHours: number;
+  clockInMethod?: string | null;
+  clockOutMethod?: string | null;
   shift: Shift | null;
   employee: {
     fullName: string;
@@ -631,6 +634,13 @@ export default function TimeLogsPage() {
           <h1 className="text-2xl font-bold text-gray-900">Time Logs</h1>
           <p className="text-gray-500">Record your daily attendance</p>
         </div>
+        <div className="flex items-center gap-2">
+          <Link href="/facial-attendance">
+            <Button className="gap-2 bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-700 hover:to-blue-700 text-white shadow-md">
+              <Camera className="w-4 h-4" />
+              Facial DTR Kiosk
+            </Button>
+          </Link>
         {(userRole === 'ADMIN' || userRole === 'MANAGER') && (
           <div className="flex items-center gap-2">
             <Dialog open={biometricImportOpen} onOpenChange={setBiometricImportOpen}>
@@ -996,6 +1006,7 @@ export default function TimeLogsPage() {
             Logout
           </Button>
         )}
+        </div>
       </div>
       <div className="bg-white rounded-xl border p-6">
         <div className="flex flex-col items-center justify-center space-y-4">
@@ -1119,6 +1130,16 @@ export default function TimeLogsPage() {
               </button>
             </div>
 
+          <Link href="/facial-attendance" className="w-full max-w-md">
+            <button
+              type="button"
+              className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-lg font-medium text-white bg-gradient-to-r from-cyan-600 via-blue-600 to-indigo-600 hover:from-cyan-500 hover:to-indigo-500 shadow-md shadow-blue-500/20 transition-all cursor-pointer"
+            >
+              <Camera className="w-5 h-5" />
+              Clock In / Out with Facial Recognition
+            </button>
+          </Link>
+
           {todayLog && employeeId === todayLog.employeeId && (
             <div className="w-full max-w-md bg-gray-50 rounded-lg p-4">
               <p className="text-sm font-medium text-gray-700 mb-2">Today&apos;s Status</p>
@@ -1177,6 +1198,7 @@ export default function TimeLogsPage() {
                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Clock In</th>
                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Clock Out</th>
                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Hours</th>
+                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Method</th>
                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Remarks</th>
                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
                    </tr>
@@ -1217,6 +1239,21 @@ export default function TimeLogsPage() {
                            <td className="px-6 py-4 text-sm">{formatTime(log.clockIn)}</td>
                            <td className="px-6 py-4 text-sm">{formatTime(log.clockOut)}</td>
                            <td className="px-6 py-4 text-sm">{log.workHours.toFixed(2)}</td>
+                            <td className="px-6 py-4 text-xs whitespace-nowrap">
+                              {log.clockInMethod === 'FACIAL' ? (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-cyan-50 text-cyan-700 border border-cyan-200">
+                                  <Camera className="w-3 h-3" /> Face ID
+                                </span>
+                              ) : log.clockInMethod === 'BIOMETRIC' ? (
+                                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-purple-50 text-purple-700 border border-purple-200">
+                                  Biometric
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-slate-100 text-slate-600">
+                                  Manual
+                                </span>
+                              )}
+                            </td>
                            <td className="px-6 py-4 text-sm whitespace-nowrap">
                              <Badge variant="outline" className={`${remarks.color} border flex items-center w-fit`}>
                                {remarks.icon}
@@ -1285,6 +1322,21 @@ export default function TimeLogsPage() {
                          <td className="px-6 py-4 text-sm">{formatTime(log.clockIn)}</td>
                          <td className="px-6 py-4 text-sm">{formatTime(log.clockOut)}</td>
                          <td className="px-6 py-4 text-sm">{log.workHours.toFixed(2)}</td>
+                            <td className="px-6 py-4 text-xs whitespace-nowrap">
+                              {log.clockInMethod === 'FACIAL' ? (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-cyan-50 text-cyan-700 border border-cyan-200">
+                                  <Camera className="w-3 h-3" /> Face ID
+                                </span>
+                              ) : log.clockInMethod === 'BIOMETRIC' ? (
+                                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-purple-50 text-purple-700 border border-purple-200">
+                                  Biometric
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-slate-100 text-slate-600">
+                                  Manual
+                                </span>
+                              )}
+                            </td>
                          <td className="px-6 py-4 text-sm whitespace-nowrap">
                            <Badge variant="outline" className={`${remarks.color} border flex items-center w-fit`}>
                              {remarks.icon}

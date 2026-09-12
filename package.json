@@ -32,6 +32,7 @@
     "@radix-ui/react-toast": "^1.1.5",
     "@radix-ui/react-tooltip": "^1.0.7",
     "@react-pdf/renderer": "^3.4.0",
+    "@vladmandic/face-api": "^1.7.15",
     "bcryptjs": "^2.4.3",
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.1.0",

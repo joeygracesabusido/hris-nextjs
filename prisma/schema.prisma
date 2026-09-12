@@ -119,11 +119,25 @@ model Employee {
   advances      Advance[]
   leaveCredits    LeaveCredit[]
   shiftSchedules ShiftSchedule[]
+  employeeFace  EmployeeFace?
 
   @@map("employees")
-  }
+}
 
-  /// Shift model for defining working hours
+/// EmployeeFace model storing 128-dimensional facial recognition embeddings
+model EmployeeFace {
+  id           String    @id @default(auto()) @map("_id") @db.ObjectId
+  employeeId   String    @unique @db.ObjectId
+  employee     Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  descriptor   Float[]   // 128-element face embedding descriptor vector
+  photoUrl     String?   // Base64 thumbnail of the registered face
+  registeredAt DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@map("employeefaces")
+}
+
+/// Shift model for defining working hours
   model Shift {
     id          String   @id @default(auto()) @map("_id") @db.ObjectId
     name        String   @unique // e.g., AM_0800_1700, NIGHT_SHIFT
@@ -377,6 +391,13 @@ model TimeLog {
   clockInLongitude  Float?
   clockOutLatitude  Float?
   clockOutLongitude Float?
+
+  // Attendance method and facial recognition verification
+  clockInMethod     String?   // FACIAL, MANUAL, BIOMETRIC, GPS
+  clockOutMethod    String?   // FACIAL, MANUAL, BIOMETRIC, GPS
+  clockInPhoto      String?   // Snapshot captured during facial clock in
+  clockOutPhoto     String?   // Snapshot captured during facial clock out
+  confidence        Float?    // Face match confidence (0-100%)
 
   notes       String?
 
