@@ -251,6 +251,21 @@ GOOGLE_CLIENT_SECRET=your-google-client-secret
 - NextAuth uses **JWT only — no PrismaAdapter** (schema has no Account/Session models). `middleware.ts` must keep `/api/auth/*`, `/auth/sync`, `/login`, `/register`, `/forgot-password` public.
 - Password recovery is **admin-driven, no email**: `POST /api/users/reset-password` (ADMIN/HR; HR cannot reset ADMINs; clears lockout; auto-generates `Ije-…` temp password when omitted). Users page has the reset modal; `/forgot-password` is an instructions page.
 
+### Form Inputs — Dark-Mode Visibility (fixed 2026-09-12, do not regress)
+- Root cause was inherited text color: dashboard layout is dark (`bg-[#050914] text-slate-100`)
+  but content pages use light `bg-white` cards/modals, so raw inputs with no explicit `bg`/`text`
+  rendered white-on-white. Dark glass fields also used `placeholder:text-slate-600` (too dim).
+- `app/globals.css` is the safety net: `:root { color-scheme: dark }`,
+  `input/select/textarea { color-scheme: dark }`, `.bg-white input/select/textarea { color-scheme: light }`,
+  `select option { background: #fff; color: #111827 }`, date/time picker indicator inverted on dark
+  (normal inside `.bg-white`), plus dark/white autofill overrides.
+- White-card safety net uses **plain CSS, never `@apply bg-white` inside a `.bg-white` selector**
+  (Tailwind throws `You cannot @apply the bg-white utility here because it creates a circular dependency`).
+- shadcn `Input`/`Textarea`/`SelectTrigger` must keep `text-foreground` + `[color-scheme:dark]`.
+- Convention: dark glass fields → `bg-white/[0.04] text-slate-100 placeholder:text-slate-500 border-white/10`;
+  white-modal fields → `bg-white text-gray-900 placeholder:text-gray-400 border-gray-300 [color-scheme:light]`.
+  Never leave a form control without explicit bg + text + placeholder colors.
+
 ### Pending DB Migration (schema staged, client not regenerated)
 `prisma/schema.prisma` adds: extended `EmployeeStatus` (CONTRACTUAL/RESIGNED/TERMINATED/RETIRED/AWOL),
 Employee 201-file fields, `TimeLog` night-diff fields, `Payroll` breakdown fields (`regularHolidayPay/specialHolidayPay/sssEC/taxableIncome/nightDiff*`).

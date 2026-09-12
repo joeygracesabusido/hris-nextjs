@@ -1,10 +1,10 @@
 'use client';
-
 import { useState, useEffect } from 'react';
-import { Plus, Search, User, Mail, Briefcase, Building, DollarSign, Calendar, CreditCard, Pencil, Trash2, X, Wallet } from 'lucide-react';
+import { Plus, Search, User, Mail, Briefcase, Building, DollarSign, Calendar, CreditCard, Pencil, Trash2, X, Wallet, Camera } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { FaceRegistrationModal } from '@/components/face-registration-modal';
 
 interface Employee {
   id: string;
@@ -29,6 +29,11 @@ interface Employee {
   pagibigNo: string;
   bankName: string;
   bankAccountNo: string;
+  employeeFace?: {
+    id: string;
+    photoUrl?: string | null;
+    registeredAt?: string;
+  } | null;
 }
 
 const departments = ['IT', 'HR', 'Finance', 'Marketing', 'Operations', 'Sales', 'Engineering', 'Admin'];
@@ -44,6 +49,8 @@ export default function EmployeesPage() {
   const [showModal, setShowModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
+  const [faceModalOpen, setFaceModalOpen] = useState(false);
+  const [employeeForFace, setEmployeeForFace] = useState<Employee | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [error, setError] = useState('');
   const [userRole, setUserRole] = useState<string>('');
@@ -224,7 +231,7 @@ export default function EmployeesPage() {
       <div className="relative">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
         <input type="text" placeholder="Search employees..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)}
-          className="w-full pl-10 pr-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500" />
+          className="w-full pl-10 pr-4 py-2 border border-white/10 rounded-lg bg-white/[0.04] text-slate-100 placeholder:text-slate-500 [color-scheme:dark] focus:ring-2 focus:ring-blue-500 focus:border-blue-500/50 focus:outline-none" />
       </div>
 
       <div className="bg-white rounded-xl border overflow-hidden shadow-sm">
@@ -242,6 +249,7 @@ export default function EmployeesPage() {
                 <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Rate/Salary</th>
                 <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Department</th>
                 <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Status</th>
+                <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Face ID</th>
                 {isAdmin && <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Actions</th>}
               </tr>
             </thead>
@@ -295,11 +303,46 @@ export default function EmployeesPage() {
                       </span>
                     </div>
                   </td>
+                  <td className="px-6 py-4">
+                    {employee.employeeFace?.id ? (
+                      <div className="flex items-center gap-2">
+                        {employee.employeeFace.photoUrl ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            src={employee.employeeFace.photoUrl}
+                            alt={employee.fullName}
+                            className="w-7 h-7 rounded-full object-cover border border-emerald-400 shadow-sm"
+                          />
+                        ) : (
+                          <div className="w-7 h-7 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center text-xs font-bold">
+                            ✓
+                          </div>
+                        )}
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                          Registered
+                        </span>
+                      </div>
+                    ) : (
+                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-slate-100 text-slate-500">
+                        Not Enrolled
+                      </span>
+                    )}
+                  </td>
                   {isAdmin && (
                     <td className="px-6 py-4">
-                      <div className="flex gap-2">
-                        <button onClick={() => handleEdit(employee)} className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"><Pencil className="w-4 h-4" /></button>
-                        <button onClick={() => { setSelectedEmployee(employee); setShowDeleteModal(true); }} className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"><Trash2 className="w-4 h-4" /></button>
+                      <div className="flex gap-1.5 items-center">
+                        <button
+                          onClick={() => {
+                            setEmployeeForFace(employee);
+                            setFaceModalOpen(true);
+                          }}
+                          title="Register / Manage Face ID"
+                          className="p-2 text-cyan-600 hover:bg-cyan-50 rounded-lg transition-colors"
+                        >
+                          <Camera className="w-4 h-4" />
+                        </button>
+                        <button onClick={() => handleEdit(employee)} title="Edit Employee" className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"><Pencil className="w-4 h-4" /></button>
+                        <button onClick={() => { setSelectedEmployee(employee); setShowDeleteModal(true); }} title="Delete Employee" className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"><Trash2 className="w-4 h-4" /></button>
                       </div>
                     </td>
                   )}
@@ -345,14 +388,14 @@ export default function EmployeesPage() {
                   </div>
                   <div className="space-y-1.5">
                     <Label className="text-xs font-bold uppercase text-gray-500">Department *</Label>
-                    <select name="department" value={formData.department} onChange={handleChange} required className="w-full h-11 px-3 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none">
+                    <select name="department" value={formData.department} onChange={handleChange} required className="w-full h-11 px-3 border border-gray-300 rounded-lg bg-white text-gray-900 [color-scheme:light] focus:ring-2 focus:ring-blue-500 outline-none">
                       <option value="">Select Department</option>
                       {departments.map(d => <option key={d} value={d}>{d}</option>)}
                     </select>
                   </div>
                   <div className="space-y-1.5">
                     <Label className="text-xs font-bold uppercase text-gray-500">Employment Status</Label>
-                    <select name="employeeStatus" value={formData.employeeStatus} onChange={handleChange} className="w-full h-11 px-3 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white">
+                    <select name="employeeStatus" value={formData.employeeStatus} onChange={handleChange} className="w-full h-11 px-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white text-gray-900 [color-scheme:light]">
                       <option value="PROBATIONARY">Probationary</option>
                       <option value="REGULAR">Regular</option>
                       <option value="RESIGNED">Resigned</option>
@@ -375,7 +418,7 @@ export default function EmployeesPage() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="space-y-1.5">
                     <Label className="text-xs font-bold uppercase text-gray-500">Payment Type *</Label>
-                    <select name="payType" value={formData.payType} onChange={handleChange} required className="w-full h-11 px-3 border rounded-lg bg-white focus:ring-2 focus:ring-blue-500 font-bold">
+                    <select name="payType" value={formData.payType} onChange={handleChange} required className="w-full h-11 px-3 border border-gray-300 rounded-lg bg-white text-gray-900 [color-scheme:light] focus:ring-2 focus:ring-blue-500 font-bold">
                       <option value="MONTHLY">Fixed Monthly Salary</option>
                       <option value="DAILY">Daily Rate Basis</option>
                     </select>
@@ -401,7 +444,7 @@ export default function EmployeesPage() {
 
                   <div className="space-y-1.5">
                     <Label className="text-xs font-bold uppercase text-gray-500">Payroll Frequency *</Label>
-                    <select name="payrollFrequency" value={formData.payrollFrequency} onChange={handleChange} required className="w-full h-11 px-3 border rounded-lg bg-white">
+                    <select name="payrollFrequency" value={formData.payrollFrequency} onChange={handleChange} required className="w-full h-11 px-3 border border-gray-300 rounded-lg bg-white text-gray-900 [color-scheme:light]">
                       {frequencies.map(f => <option key={f.value} value={f.value}>{f.label}</option>)}
                     </select>
                   </div>
@@ -472,6 +515,13 @@ export default function EmployeesPage() {
           </div>
         </div>
       )}
+
+      <FaceRegistrationModal
+        open={faceModalOpen}
+        onOpenChange={setFaceModalOpen}
+        employee={employeeForFace}
+        onSuccess={fetchEmployees}
+      />
     </div>
   );
 }

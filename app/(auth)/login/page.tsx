@@ -251,7 +251,7 @@ export default function LoginPage() {
                       type="text"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
-                      className="block w-full pl-11 pr-4 py-3 bg-white/[0.04] border border-white/10 rounded-xl text-[15px] placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-cyan-400/60 focus:border-cyan-300/50 focus:bg-white/[0.07] transition-all"
+                      className="block w-full pl-11 pr-4 py-3 bg-white/[0.04] border border-white/10 rounded-xl text-[15px] text-white [color-scheme:dark] placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-cyan-400/60 focus:border-cyan-300/50 focus:bg-white/[0.07] transition-all"
                       placeholder="you@company.ph"
                       required
                     />
@@ -270,7 +270,7 @@ export default function LoginPage() {
                       type={showPassword ? 'text' : 'password'}
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
-                      className="block w-full pl-11 pr-11 py-3 bg-white/[0.04] border border-white/10 rounded-xl text-[15px] placeholder:text-slate-600 focus:outline-none focus:ring-2 focus:ring-cyan-400/60 focus:border-cyan-300/50 focus:bg-white/[0.07] transition-all"
+                      className="block w-full pl-11 pr-11 py-3 bg-white/[0.04] border border-white/10 rounded-xl text-[15px] text-white [color-scheme:dark] placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-cyan-400/60 focus:border-cyan-300/50 focus:bg-white/[0.07] transition-all"
                       placeholder="••••••••"
                       required
                     />

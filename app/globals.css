@@ -24,10 +24,83 @@
     --input: 217 32% 17%;
     --ring: 224 76% 48%;
     --radius: 0.75rem;
+    color-scheme: dark;
   }
 
   * {
     @apply border-border;
+  }
+
+  /* Native controls follow the dark theme so date/time pickers,
+     dropdowns and scrollbars stay visible on dark surfaces. */
+  input,
+  select,
+  textarea {
+    color-scheme: dark;
+  }
+
+  /* Light islands (white cards / modals) on the dark dashboard use the
+     light scheme so native pickers and dropdowns stay visible there. */
+  .bg-white input,
+  .bg-white select,
+  .bg-white textarea {
+    color-scheme: light;
+  }
+
+  /* Safety net: raw inputs inside white cards/modals inherit the
+     dashboard's light text (slate-100) which is invisible on white.
+     Force explicit light-mode colors when no bg/text utility is set.
+     NOTE: plain CSS (no @apply) to avoid circular dependency with .bg-white. */
+  .bg-white input:not([type='checkbox']):not([type='radio']):not([type='file']):not([class*='bg-']),
+  .bg-white textarea:not([class*='bg-']),
+  .bg-white select:not([class*='bg-']) {
+    background-color: #ffffff;
+    color: #111827;
+    border-color: #d1d5db;
+  }
+
+  .bg-white input::placeholder,
+  .bg-white textarea::placeholder {
+    color: #9ca3af;
+    opacity: 1;
+  }
+
+  /* Native dropdown options always render on a white popup — keep dark text. */
+  select option {
+    background-color: #ffffff;
+    color: #111827;
+  }
+
+  /* Date/time picker icons are dark by default (invisible on dark bg). */
+  input[type='date']::-webkit-calendar-picker-indicator,
+  input[type='time']::-webkit-calendar-picker-indicator,
+  input[type='datetime-local']::-webkit-calendar-picker-indicator {
+    filter: invert(0.7);
+    cursor: pointer;
+    opacity: 0.8;
+  }
+
+  .bg-white input[type='date']::-webkit-calendar-picker-indicator,
+  .bg-white input[type='time']::-webkit-calendar-picker-indicator,
+  .bg-white input[type='datetime-local']::-webkit-calendar-picker-indicator {
+    filter: none;
+    opacity: 0.6;
+  }
+
+  /* Chrome autofill: keep text visible on dark fields + white modals. */
+  input:-webkit-autofill,
+  input:-webkit-autofill:hover,
+  input:-webkit-autofill:focus {
+    -webkit-text-fill-color: #f1f5f9;
+    -webkit-box-shadow: 0 0 0 1000px #0b1226 inset;
+    transition: background-color 5000s ease-in-out 0s;
+  }
+
+  .bg-white input:-webkit-autofill,
+  .bg-white input:-webkit-autofill:hover,
+  .bg-white input:-webkit-autofill:focus {
+    -webkit-text-fill-color: #111827;
+    -webkit-box-shadow: 0 0 0 1000px #ffffff inset;
   }
 
   body {

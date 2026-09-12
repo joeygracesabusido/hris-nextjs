@@ -355,16 +355,16 @@ export default function ShiftSchedulePage() {
                   <form onSubmit={handleCreateShift} className="space-y-4 bg-gray-50 p-4 rounded-xl border border-gray-100">
                     <div className="space-y-2">
                       <Label>Shift Name</Label>
-                      <Input placeholder="e.g. MORNING_SHIFT" className="bg-white" value={newShift.name} onChange={e => setNewShift({...newShift, name: e.target.value})} required />
+                      <Input placeholder="e.g. MORNING_SHIFT" className="bg-white text-gray-900 placeholder:text-gray-400 [color-scheme:light]" value={newShift.name} onChange={e => setNewShift({...newShift, name: e.target.value})} required />
                     </div>
                     <div className="grid grid-cols-2 gap-4">
                       <div className="space-y-2">
                         <Label>Start Time</Label>
-                        <input type="time" className="flex h-10 w-full rounded-md border border-input bg-white px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none" value={newShift.startTime} onChange={e => setNewShift({...newShift, startTime: e.target.value})} required />
+                        <input type="time" className="flex h-10 w-full rounded-md border border-input bg-white px-3 py-2 text-sm text-gray-900 [color-scheme:light] focus:ring-2 focus:ring-blue-500 outline-none" value={newShift.startTime} onChange={e => setNewShift({...newShift, startTime: e.target.value})} required />
                       </div>
                       <div className="space-y-2">
                         <Label>End Time</Label>
-                        <input type="time" className="flex h-10 w-full rounded-md border border-input bg-white px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none" value={newShift.endTime} onChange={e => setNewShift({...newShift, endTime: e.target.value})} required />
+                        <input type="time" className="flex h-10 w-full rounded-md border border-input bg-white px-3 py-2 text-sm text-gray-900 [color-scheme:light] focus:ring-2 focus:ring-blue-500 outline-none" value={newShift.endTime} onChange={e => setNewShift({...newShift, endTime: e.target.value})} required />
                       </div>
                     </div>
                     <div className="flex items-center gap-3 py-2">
