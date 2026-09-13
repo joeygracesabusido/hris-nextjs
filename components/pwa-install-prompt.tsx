@@ -11,9 +11,27 @@ interface BeforeInstallPromptEvent extends Event {
 
 const DISMISS_KEY = 'ijesoft-pwa-dismissed';
 
+function readDismissed(): boolean {
+  try {
+    return localStorage.getItem(DISMISS_KEY) === '1';
+  } catch {
+    // Storage blocked (private mode) — treat as not dismissed.
+    return false;
+  }
+}
+
+function persistDismissed(): void {
+  try {
+    localStorage.setItem(DISMISS_KEY, '1');
+  } catch {
+    // Storage blocked — prompt simply reappears next visit.
+  }
+}
+
 function isIos(): boolean {
   if (typeof navigator === 'undefined') return false;
-  return /iphone|ipad|ipod/i.test(navigator.userAgent);
+  const ua = navigator.userAgent;
+  return /iphone|ipad|ipod/i.test(ua) || (/macintosh/i.test(ua) && navigator.maxTouchPoints > 1);
 }
 
 function isStandalone(): boolean {
@@ -28,7 +46,7 @@ export function PwaInstallPrompt({ className }: { className?: string }) {
 
   useEffect(() => {
     if (isStandalone()) return;
-    if (localStorage.getItem(DISMISS_KEY) === '1') return;
+    if (readDismissed()) return;
     if (isIos()) {
       setIosHint(true);
       setVisible(true);
@@ -48,12 +66,13 @@ export function PwaInstallPrompt({ className }: { className?: string }) {
     await deferred.prompt();
     const choice = await deferred.userChoice;
     console.info('PWA install choice:', choice.outcome);
+    if (choice.outcome === 'dismissed') persistDismissed();
     setDeferred(null);
     setVisible(false);
   }, [deferred]);
 
   const dismiss = useCallback(() => {
-    localStorage.setItem(DISMISS_KEY, '1');
+    persistDismissed();
     setVisible(false);
     setIosHint(false);
   }, []);

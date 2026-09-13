@@ -10,6 +10,8 @@ export function PwaRegister() {
     if (!('serviceWorker' in navigator)) return;
 
     let cancelled = false;
+    let registrationRef: ServiceWorkerRegistration | undefined;
+    let onUpdateFound: (() => void) | undefined;
 
     const notifyUpdate = () => {
       toast({
@@ -27,11 +29,12 @@ export function PwaRegister() {
       .register('/sw.js')
       .then((registration) => {
         if (cancelled) return;
+        registrationRef = registration;
         if (registration.waiting) {
           notifyUpdate();
           return;
         }
-        registration.addEventListener('updatefound', () => {
+        onUpdateFound = () => {
           const worker = registration.installing;
           if (!worker) return;
           worker.addEventListener('statechange', () => {
@@ -39,7 +42,8 @@ export function PwaRegister() {
               notifyUpdate();
             }
           });
-        });
+        };
+        registration.addEventListener('updatefound', onUpdateFound);
       })
       .catch((error) => {
         console.warn('PWA service worker registration failed:', error);
@@ -47,6 +51,9 @@ export function PwaRegister() {
 
     return () => {
       cancelled = true;
+      if (registrationRef && onUpdateFound) {
+        registrationRef.removeEventListener('updatefound', onUpdateFound);
+      }
     };
   }, []);
 
