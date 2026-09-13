@@ -11,6 +11,20 @@ export function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
+  // PWA installability: the service worker, manifest, icons, and offline
+  // fallback must be served as-is. A 307 to /login here silently breaks
+  // "Add to Home Screen" and offline support.
+  if (
+    pathname === '/sw.js' ||
+    pathname === '/sw.js.map' ||
+    pathname === '/manifest.webmanifest' ||
+    pathname === '/favicon.ico' ||
+    pathname === '/offline' ||
+    pathname.startsWith('/icons/')
+  ) {
+    return NextResponse.next();
+  }
+
   // NextAuth endpoints (signin / callback / session) must stay public,
   // otherwise the Google OAuth flow gets redirected to /login mid-flight
   if (pathname.startsWith('/api/auth/')) {
