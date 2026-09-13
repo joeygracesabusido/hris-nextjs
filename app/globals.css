@@ -108,6 +108,16 @@
     font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
   }
 
+  /* No page-level sideways scroll on phones: decorative blurred blobs and
+     wide grids must never widen the document. `clip` (not `hidden`) keeps
+     `position: sticky` working. Tables keep their own inner
+     `overflow-x-auto` scroll areas. */
+  html,
+  body {
+    max-width: 100%;
+    overflow-x: clip;
+  }
+
   ::selection {
     background: rgba(56, 130, 246, 0.35);
     color: white;

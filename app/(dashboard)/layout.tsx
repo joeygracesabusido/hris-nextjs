@@ -116,7 +116,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   return (
     <div className="min-h-screen bg-[#050914] text-slate-100 relative">
       {/* ambient */}
-      <div className="fixed inset-0 pointer-events-none z-0">
+      <div className="fixed inset-0 overflow-hidden pointer-events-none z-0">
         <div className="absolute inset-0 bg-grid opacity-60 bg-grid-fade" />
         <div className="absolute -top-32 left-1/4 w-[500px] h-[300px] bg-blue-600/15 blur-[120px]" />
         <div className="absolute top-1/3 -right-32 w-[420px] h-[420px] bg-violet-600/15 blur-[130px]" />
@@ -265,7 +265,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </nav>
 
         <div className="p-4 border-t border-white/[0.07]">
-          <PwaInstallPrompt className="mb-3" />
+          <PwaInstallPrompt className="mb-3 hidden lg:flex" />
           <div className="glass rounded-2xl px-4 py-3 mb-3 flex items-center justify-between">
             <div>
               <p className="text-[11px] text-slate-500 uppercase tracking-widest">Manila</p>
@@ -282,6 +282,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           </button>
         </div>
       </aside>
+
+      {/* Mobile PWA install — sidebar is slide-in hidden on phones, so render
+          a floating prompt visible without opening the menu. Renders nothing
+          until PwaInstallPrompt becomes visible. */}
+      <div className="lg:hidden fixed bottom-4 left-4 right-4 z-30">
+        <PwaInstallPrompt />
+      </div>
 
       {/* Main column */}
       <div className="relative z-10 lg:ml-[272px] min-h-screen flex flex-col">
@@ -316,7 +323,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </header>
 
         {/* Main content */}
-        <main className="flex-1 p-6 lg:p-8 pt-20 lg:pt-8 max-w-[1400px] w-full mx-auto">{children}</main>
+        <main className="flex-1 min-w-0 p-4 sm:p-6 lg:p-8 pt-20 lg:pt-8 max-w-[1400px] w-full mx-auto">{children}</main>
       </div>
 
       {/* Overlay for mobile */}
