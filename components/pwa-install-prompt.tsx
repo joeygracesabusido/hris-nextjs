@@ -70,7 +70,6 @@ export function PwaInstallPrompt({ className }: { className?: string }) {
       setVisible(true);
       return;
     }
-    let fallback: ReturnType<typeof setTimeout> | undefined;
     const onPrompt = (event: Event) => {
       event.preventDefault();
       const promptEvent = event as BeforeInstallPromptEvent;
@@ -78,13 +77,14 @@ export function PwaInstallPrompt({ className }: { className?: string }) {
       setDeferred(promptEvent);
       setManualHint(false);
       setVisible(true);
-      if (fallback) clearTimeout(fallback);
     };
     window.addEventListener('beforeinstallprompt', onPrompt);
     // Fallback for insecure contexts (e.g. http://192.168.x.x:3000 LAN dev)
     // or when the SW is disabled in dev: `beforeinstallprompt` never fires,
-    // so show manual steps instead of rendering nothing.
-    fallback = setTimeout(() => {
+    // so show manual steps instead of rendering nothing. The
+    // `deferredRef` guard makes clearing this timer on native prompt
+    // unnecessary.
+    const fallback = setTimeout(() => {
       if (!deferredRef.current && !readDismissed() && !isStandalone()) {
         setManualHint(true);
         setVisible(true);
@@ -92,7 +92,7 @@ export function PwaInstallPrompt({ className }: { className?: string }) {
     }, 2000);
     return () => {
       window.removeEventListener('beforeinstallprompt', onPrompt);
-      if (fallback) clearTimeout(fallback);
+      clearTimeout(fallback);
     };
   }, []);
 
