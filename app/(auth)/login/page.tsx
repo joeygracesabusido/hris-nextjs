@@ -18,6 +18,7 @@ import {
   ArrowRight,
   Hexagon,
 } from 'lucide-react';
+import { PwaInstallPrompt } from '@/components/pwa-install-prompt';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -371,6 +372,7 @@ export default function LoginPage() {
           <p className="mt-5 text-center text-[11px] text-slate-600 flex items-center justify-center gap-1.5">
             <ShieldCheck className="w-3.5 h-3.5" /> Protected by IJESoft Trust · SOC2 · ISO 27001
           </p>
+          <PwaInstallPrompt className="mt-4" />
         </div>
       </div>
 

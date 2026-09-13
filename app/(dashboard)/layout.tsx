@@ -26,6 +26,7 @@ import {
   Camera,
 } from 'lucide-react';
 import { useState, useEffect } from 'react';
+import { PwaInstallPrompt } from '@/components/pwa-install-prompt';
 
 const navItems = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -264,6 +265,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </nav>
 
         <div className="p-4 border-t border-white/[0.07]">
+          <PwaInstallPrompt className="mb-3" />
           <div className="glass rounded-2xl px-4 py-3 mb-3 flex items-center justify-between">
             <div>
               <p className="text-[11px] text-slate-500 uppercase tracking-widest">Manila</p>
