@@ -74,13 +74,24 @@ export function FaceRegistrationModal({
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const animFrameRef = useRef<number | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
   const isMountedRef = useRef(true);
 
-  // Initialize camera and models when opened
+  const stopAll = () => {
+    if (animFrameRef.current) {
+      cancelAnimationFrame(animFrameRef.current);
+      animFrameRef.current = null;
+    }
+    stopWebcam(videoRef.current, streamRef.current);
+    streamRef.current = null;
+    setStream(null);
+  };
+
+  // Initialize camera and models when opened (auto-detect, no extra clicks)
   useEffect(() => {
     isMountedRef.current = true;
     if (!open) {
-      cleanup();
+      stopAll();
       return;
     }
 
@@ -89,6 +100,7 @@ export function FaceRegistrationModal({
     setCapturedPhoto(null);
     setCapturedDescriptor(null);
     setCountdown(null);
+    setIsFaceDetected(false);
 
     const init = async () => {
       try {
@@ -103,24 +115,33 @@ export function FaceRegistrationModal({
         }
 
         setModelsLoading(true);
+        setCameraLoading(false);
         setDetectionStatus('Loading biometric neural networks...');
         await loadFaceRecognitionModels();
         if (!isMountedRef.current) return;
         setModelsLoading(false);
 
+        // Video element is always mounted (hidden while loading), but wait a
+        // frame so the ref is attached before attaching the stream.
         setCameraLoading(true);
         setDetectionStatus('Requesting camera access...');
-        if (videoRef.current) {
-          const mediaStream = await startWebcam(videoRef.current);
-          if (!isMountedRef.current) {
-            stopWebcam(null, mediaStream);
-            return;
-          }
-          setStream(mediaStream);
-          setCameraLoading(false);
-          setDetectionStatus('Looking for face...');
-          startDetectionLoop();
+        for (let i = 0; i < 40 && !videoRef.current && isMountedRef.current; i++) {
+          await new Promise((r) => setTimeout(r, 50));
         }
+        if (!isMountedRef.current) return;
+        if (!videoRef.current) {
+          throw new Error('Camera view failed to mount. Close and reopen the scanner.');
+        }
+        const mediaStream = await startWebcam(videoRef.current);
+        if (!isMountedRef.current) {
+          stopWebcam(null, mediaStream);
+          return;
+        }
+        streamRef.current = mediaStream;
+        setStream(mediaStream);
+        setCameraLoading(false);
+        setDetectionStatus('Looking for face...');
+        startDetectionLoop();
       } catch (err: unknown) {
         console.error('Camera/model init error:', err);
         if (isMountedRef.current) {
@@ -137,17 +158,17 @@ export function FaceRegistrationModal({
 
     return () => {
       isMountedRef.current = false;
-      cleanup();
+      if (animFrameRef.current) {
+        cancelAnimationFrame(animFrameRef.current);
+        animFrameRef.current = null;
+      }
+      stopWebcam(videoRef.current, streamRef.current);
+      streamRef.current = null;
     };
   }, [open]);
 
   const cleanup = () => {
-    if (animFrameRef.current) {
-      cancelAnimationFrame(animFrameRef.current);
-      animFrameRef.current = null;
-    }
-    stopWebcam(videoRef.current, stream);
-    setStream(null);
+    stopAll();
   };
 
   // Continuous face detection loop
@@ -389,14 +410,15 @@ export function FaceRegistrationModal({
             </div>
           )}
 
-          {/* Viewport: Live Camera or Captured Preview */}
+          {/* Viewport: Live Camera or Captured Preview (video always mounted so auto-start works) */}
           <div className="relative mx-auto w-full max-w-md aspect-[4/3] rounded-2xl overflow-hidden bg-black/60 border-2 border-white/10 flex items-center justify-center">
-            {cameraLoading || modelsLoading ? (
-              <div className="flex flex-col items-center gap-3 text-slate-400 text-xs">
+            {(cameraLoading || modelsLoading) && !capturedPhoto && (
+              <div className="absolute inset-0 z-20 bg-black/70 flex flex-col items-center justify-center gap-3 text-slate-300 text-xs">
                 <div className="w-8 h-8 border-2 border-cyan-400 border-t-transparent rounded-full animate-spin" />
                 <span>{detectionStatus}</span>
               </div>
-            ) : capturedPhoto ? (
+            )}
+            {capturedPhoto ? (
               // Captured preview
               <div className="relative w-full h-full">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
