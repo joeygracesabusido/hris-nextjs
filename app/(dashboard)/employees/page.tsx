@@ -1,10 +1,15 @@
 'use client';
 import { useState, useEffect } from 'react';
+import dynamic from 'next/dynamic';
 import { Plus, Search, User, Mail, Briefcase, Building, DollarSign, Calendar, CreditCard, Pencil, Trash2, X, Wallet, Camera } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { FaceRegistrationModal } from '@/components/face-registration-modal';
+
+const FaceRegistrationModal = dynamic(
+  () => import('@/components/face-registration-modal').then((m) => m.FaceRegistrationModal),
+  { ssr: false }
+);
 
 interface Employee {
   id: string;
@@ -214,15 +219,15 @@ export default function EmployeesPage() {
   const isAdmin = userRole === 'ADMIN';
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="space-y-6 max-w-full overflow-x-clip">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Employees</h1>
           <p className="text-gray-500">Manage employee records and payroll rates</p>
         </div>
         {isAdmin && (
           <button onClick={() => { setSelectedEmployee(null); resetForm(); setShowModal(true); }}
-            className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700">
+            className="flex items-center justify-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 w-full sm:w-auto">
             <Plus className="w-5 h-5" /> Add Employee
           </button>
         )}
@@ -234,23 +239,24 @@ export default function EmployeesPage() {
           className="w-full pl-10 pr-4 py-2 border border-white/10 rounded-lg bg-white/[0.04] text-slate-100 placeholder:text-slate-500 [color-scheme:dark] focus:ring-2 focus:ring-blue-500 focus:border-blue-500/50 focus:outline-none" />
       </div>
 
-      <div className="bg-white rounded-xl border overflow-hidden shadow-sm">
+      <div className="bg-white rounded-xl border shadow-sm overflow-x-auto overscroll-x-contain touch-pan-x touch-pan-y [-webkit-overflow-scrolling:touch]">
+        <p className="px-4 pt-3 pb-1 text-xs text-gray-400 sm:hidden">Swipe sideways to see Actions →</p>
         {loading ? (
           <div className="p-12 text-center text-gray-500 flex flex-col items-center gap-2">
             <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
             Loading employees...
           </div>
         ) : (
-          <table className="w-full">
+          <table className="w-full min-w-[880px] border-collapse">
             <thead className="bg-gray-50 border-b">
               <tr>
-                <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Employee</th>
-                <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Pay Type</th>
-                <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Rate/Salary</th>
-                <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Department</th>
-                <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Status</th>
-                <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Face ID</th>
-                {isAdmin && <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Actions</th>}
+                <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider whitespace-nowrap">Employee</th>
+                <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider whitespace-nowrap">Pay Type</th>
+                <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider whitespace-nowrap">Rate/Salary</th>
+                <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider whitespace-nowrap">Department</th>
+                <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider whitespace-nowrap">Status</th>
+                <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider whitespace-nowrap">Face ID</th>
+                {isAdmin && <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider whitespace-nowrap sticky right-0 bg-gray-50 shadow-[-8px_0_12px_-6px_rgba(0,0,0,0.12)] border-l border-gray-100">Actions</th>}
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
@@ -329,8 +335,8 @@ export default function EmployeesPage() {
                     )}
                   </td>
                   {isAdmin && (
-                    <td className="px-6 py-4">
-                      <div className="flex gap-1.5 items-center">
+                    <td className="px-6 py-4 sticky right-0 bg-white shadow-[-8px_0_12px_-6px_rgba(0,0,0,0.12)] border-l border-gray-100">
+                      <div className="flex gap-1.5 items-center whitespace-nowrap">
                         <button
                           onClick={() => {
                             setEmployeeForFace(employee);

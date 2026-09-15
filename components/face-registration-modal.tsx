@@ -92,6 +92,16 @@ export function FaceRegistrationModal({
 
     const init = async () => {
       try {
+        // Pre-check: Android Chrome blocks camera on insecure http:// origins.
+        if (typeof window !== 'undefined' && !window.isSecureContext) {
+          const host = window.location.hostname;
+          if (host !== 'localhost' && host !== '127.0.0.1') {
+            throw new Error(
+              `Camera blocked over insecure HTTP (${host}). Use an HTTPS URL (e.g. ngrok tunnel) — or on the phone open chrome://flags, enable "Insecure origins treated as secure", add http://${host}:${window.location.port || '3000'}, relaunch Chrome, and retry.`
+            );
+          }
+        }
+
         setModelsLoading(true);
         setDetectionStatus('Loading biometric neural networks...');
         await loadFaceRecognitionModels();

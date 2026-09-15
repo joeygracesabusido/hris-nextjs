@@ -35,23 +35,36 @@ export async function GET(request: Request) {
       whereClause.id = linkedEmployeeId;
     }
 
-    const employees = await prisma.employee.findMany({
-      where: whereClause,
-      include: {
-        employeeFace: {
-          select: {
-            id: true,
-            photoUrl: true,
-            registeredAt: true,
+    const employees = await (async () => {
+      try {
+        return await prisma.employee.findMany({
+          where: whereClause,
+          include: {
+            employeeFace: {
+              select: {
+                id: true,
+                photoUrl: true,
+                registeredAt: true,
+              },
+            },
           },
-        },
-      },
-      orderBy: { createdAt: 'desc' },
-    });
+          orderBy: { createdAt: 'desc' },
+        });
+      } catch (includeError) {
+        // Fallback for stale Prisma client without EmployeeFace delegate
+        // (other pages work because they don't include employeeFace).
+        console.warn('employeeFace include failed, retrying without it. Run `npx prisma generate` + `npm run db:push` with dev server stopped:', includeError);
+        const rows = await prisma.employee.findMany({
+          where: whereClause,
+          orderBy: { createdAt: 'desc' },
+        });
+        return rows.map((e) => ({ ...e, employeeFace: null }));
+      }
+    })();
     return NextResponse.json(employees);
   } catch (error) {
     console.error('Error fetching employees:', error);
-    return NextResponse.json({ error: 'Failed to fetch employees' }, { status: 500 });
+    return NextResponse.json({ error: 'Failed to fetch employees', details: String(error) }, { status: 500 });
   }
 }
 

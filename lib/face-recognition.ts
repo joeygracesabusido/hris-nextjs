@@ -189,29 +189,73 @@ export function matchFaceDescriptor(
 
 /**
  * Helper to start webcam stream into a video element
+ * Android/Chrome note: getUserMedia requires a secure context (HTTPS or
+ * localhost). Plain http://192.168.x.x on a phone will fail — use an HTTPS
+ * tunnel (e.g. ngrok) or enable the insecure-origin flag. Errors are mapped
+ * to human-readable messages for the registration modal.
  */
 export async function startWebcam(
   videoElement: HTMLVideoElement,
   options?: { facingMode?: 'user' | 'environment'; width?: number; height?: number }
 ): Promise<MediaStream> {
-  const constraints: MediaStreamConstraints = {
-    audio: false,
-    video: {
-      facingMode: options?.facingMode ?? 'user',
-      width: { ideal: options?.width ?? 640 },
-      height: { ideal: options?.height ?? 480 },
-    },
+  if (typeof navigator === 'undefined' || !navigator.mediaDevices?.getUserMedia) {
+    const host = typeof window !== 'undefined' ? window.location.hostname : '';
+    const isLocalhost = host === 'localhost' || host === '127.0.0.1';
+    const secure = typeof window !== 'undefined' ? window.isSecureContext : false;
+    if (!secure && !isLocalhost) {
+      throw new Error(
+        'Camera blocked: Chrome requires HTTPS for camera access. Open this page via HTTPS (e.g. ngrok tunnel) instead of http://192.168.x.x, or on the phone enable chrome://flags/#unsafely-treat-insecure-origin-as-secure for this origin.'
+      );
+    }
+    throw new Error('Camera API not available in this browser. Use Chrome on Android with HTTPS.');
+  }
+
+  const attempt = async (video: MediaTrackConstraints): Promise<MediaStream> => {
+    const stream = await navigator.mediaDevices.getUserMedia({
+      audio: false,
+      video,
+    });
+    videoElement.srcObject = stream;
+
+    return new Promise((resolve, reject) => {
+      const timeout = setTimeout(() => reject(new Error('Camera timed out. Tap Retake / reopen and allow permission.')), 10000);
+      videoElement.onloadedmetadata = () => {
+        clearTimeout(timeout);
+        videoElement.play().then(() => resolve(stream)).catch(reject);
+      };
+    });
   };
 
-  const stream = await navigator.mediaDevices.getUserMedia(constraints);
-  videoElement.srcObject = stream;
+  const ideal: MediaTrackConstraints = {
+    facingMode: options?.facingMode ?? 'user',
+    width: { ideal: options?.width ?? 640 },
+    height: { ideal: options?.height ?? 480 },
+  };
 
-  return new Promise((resolve) => {
-    videoElement.onloadedmetadata = () => {
-      videoElement.play();
-      resolve(stream);
-    };
-  });
+  try {
+    return await attempt(ideal);
+  } catch (err) {
+    const name = err instanceof DOMException ? err.name : err instanceof Error ? err.message : String(err);
+
+    if (name === 'OverconstrainedError' || (err instanceof Error && /overconstrain/i.test(err.message))) {
+      // Low-end Android devices often reject ideal width/height — retry minimal.
+      try {
+        return await attempt({ facingMode: options?.facingMode ?? 'user' });
+      } catch {
+        // fall through to mapped error below
+      }
+    }
+    if (name === 'NotAllowedError' || name === 'SecurityError') {
+      throw new Error('Camera permission denied. In Chrome tap the lock icon → Site settings → Camera → Allow, then reopen.');
+    }
+    if (name === 'NotFoundError' || name === 'OverconstrainedError') {
+      throw new Error('No camera found. Make sure no other app is using the camera and the phone has a front camera.');
+    }
+    if (name === 'NotReadableError' || name === 'AbortError') {
+      throw new Error('Camera is busy (used by another app/tab). Close other camera apps and try again.');
+    }
+    throw err instanceof Error ? err : new Error(String(err));
+  }
 }
 
 /**
