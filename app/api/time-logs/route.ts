@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { startOfDay, endOfDay } from 'date-fns';
 import { cookies } from 'next/headers';
+import { z } from 'zod';
 import { buildRoleBasedWhereClause } from '@/lib/auth-helpers';
 
 const MANILA_TIMEZONE = 'Asia/Manila';
@@ -305,5 +306,109 @@ export async function DELETE(request: Request) {
   } catch (error) {
     console.error('Error deleting time log:', error);
     return NextResponse.json({ error: 'Failed to delete time log' }, { status: 500 });
+  }
+}
+
+const UpdateTimeLogSchema = z.object({
+  id: z.string().min(1, 'Time log ID is required'),
+  // Calendar day (Manila) in YYYY-MM-DD format — editable in the Edit dialog
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be YYYY-MM-DD'),
+  // Wall-clock times (Manila) in HH:MM format; empty string clears the value
+  clockIn: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'Invalid time').or(z.literal('')),
+  clockOut: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'Invalid time').or(z.literal('')),
+  notes: z.string().max(500).optional(),
+});
+
+function toManilaDayKey(d: Date): string {
+  return d.toLocaleDateString('en-CA', { timeZone: MANILA_TIMEZONE });
+}
+
+export async function PUT(request: Request) {
+  try {
+    const cookieStore = await cookies();
+    const userRole = cookieStore.get('userRole')?.value;
+
+    if (userRole !== 'ADMIN' && userRole !== 'MANAGER') {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const body: unknown = await request.json();
+    const parsed = UpdateTimeLogSchema.safeParse(body);
+    if (!parsed.success) {
+      return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
+    }
+
+    const { id, date, clockIn, clockOut, notes } = parsed.data;
+
+    const existing = await prisma.timeLog.findUnique({ where: { id } });
+    if (!existing) {
+      return NextResponse.json({ error: 'Time log not found' }, { status: 404 });
+    }
+
+    if (clockIn === '' && clockOut !== '') {
+      return NextResponse.json(
+        { error: 'Clock in is required when clock out is set' },
+        { status: 400 }
+      );
+    }
+
+    const [year, month, day] = date.split('-').map(Number);
+    // Noon UTC anchor keeps the calendar day stable across timezones
+    // (same convention as the XCLS import).
+    const newDate = new Date(Date.UTC(year, month - 1, day, 12, 0, 0, 0));
+
+    const buildWallTime = (hhmm: string): Date => {
+      const [h, m] = hhmm.split(':').map(Number);
+      // Times are stored as UTC but represent Philippines local time,
+      // matching the XCLS import convention and the frontend display
+      // (which reads UTC hours directly as Manila time).
+      return new Date(Date.UTC(year, month - 1, day, h, m, 0, 0));
+    };
+
+    const newClockIn = clockIn !== '' ? buildWallTime(clockIn) : null;
+    const newClockOut = clockOut !== '' ? buildWallTime(clockOut) : null;
+
+    if (newClockIn && newClockOut && newClockOut.getTime() <= newClockIn.getTime()) {
+      return NextResponse.json(
+        { error: 'Clock out must be after clock in' },
+        { status: 400 }
+      );
+    }
+
+    // Duplicate-day guard: the schema unique key is on the exact timestamp,
+    // so compare Manila calendar days against the employee's other logs.
+    const siblings = await prisma.timeLog.findMany({
+      where: { employeeId: existing.employeeId, NOT: { id } },
+      select: { id: true, date: true },
+    });
+    const clash = siblings.find((sib) => toManilaDayKey(new Date(sib.date)) === date);
+    if (clash) {
+      return NextResponse.json(
+        { error: 'Another time log already exists for this employee on the selected date' },
+        { status: 409 }
+      );
+    }
+
+    let workHours = 0;
+    if (newClockIn && newClockOut) {
+      workHours = Math.round(((newClockOut.getTime() - newClockIn.getTime()) / 3600000) * 100) / 100;
+    }
+
+    const updated = await prisma.timeLog.update({
+      where: { id },
+      data: {
+        date: newDate,
+        clockIn: newClockIn,
+        clockOut: newClockOut,
+        workHours,
+        notes: notes ?? existing.notes,
+        isEdited: true,
+      },
+    });
+
+    return NextResponse.json(updated);
+  } catch (error) {
+    console.error('Error updating time log:', error);
+    return NextResponse.json({ error: 'Failed to update time log' }, { status: 500 });
   }
 }

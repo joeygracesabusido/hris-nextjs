@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
-import { Clock, Play, Square, Upload, Download, FileSpreadsheet, LogOut, Search, AlertCircle, CheckCircle2, MapPin, NavigationOff, Trash2, Camera } from 'lucide-react';
+import { Clock, Play, Square, Upload, Download, FileSpreadsheet, LogOut, Search, AlertCircle, CheckCircle2, MapPin, NavigationOff, Trash2, Camera, Pencil } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import {
   Dialog,
@@ -76,6 +76,14 @@ export default function TimeLogsPage() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [timeLogToDelete, setTimeLogToDelete] = useState<TimeLog | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [timeLogToEdit, setTimeLogToEdit] = useState<TimeLog | null>(null);
+  const [editDate, setEditDate] = useState('');
+  const [editClockIn, setEditClockIn] = useState('');
+  const [editClockOut, setEditClockOut] = useState('');
+  const [editNotes, setEditNotes] = useState('');
+  const [savingEdit, setSavingEdit] = useState(false);
+  const [editError, setEditError] = useState<string | null>(null);
   const [xclsImportOpen, setXclsImportOpen] = useState(false);
   const [xclsImporting, setXclsImporting] = useState(false);
   const [xclsImportResult, setXclsImportResult] = useState<{ success: number; absent: number; failed: number; errors: string[] } | null>(null);
@@ -624,6 +632,74 @@ export default function TimeLogsPage() {
       alert('Something went wrong');
     } finally {
       setDeleting(false);
+    }
+  };
+
+  // Prefill helpers use the same conventions as the table display:
+  // date column = Manila calendar day, time columns = stored UTC clock
+  // read directly as Manila wall time.
+  const toDateInputValue = (dateStr: string) => {
+    return new Date(dateStr).toLocaleDateString('en-CA', { timeZone: 'Asia/Manila' });
+  };
+
+  const toTimeInputValue = (dateStr: string | null) => {
+    if (!dateStr) return '';
+    const d = new Date(dateStr);
+    const hh = String(d.getUTCHours()).padStart(2, '0');
+    const mm = String(d.getUTCMinutes()).padStart(2, '0');
+    return `${hh}:${mm}`;
+  };
+
+  const handleEditClick = (log: TimeLog) => {
+    setTimeLogToEdit(log);
+    setEditDate(toDateInputValue(log.date));
+    setEditClockIn(toTimeInputValue(log.clockIn));
+    setEditClockOut(toTimeInputValue(log.clockOut));
+    setEditNotes('');
+    setEditError(null);
+    setEditDialogOpen(true);
+  };
+
+  const handleEditSave = async () => {
+    if (!timeLogToEdit) return;
+
+    if (!editDate) {
+      setEditError('Date is required');
+      return;
+    }
+
+    setSavingEdit(true);
+    setEditError(null);
+    try {
+      const res = await fetch('/api/time-logs', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: timeLogToEdit.id,
+          date: editDate,
+          clockIn: editClockIn,
+          clockOut: editClockOut,
+          notes: editNotes || undefined,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        const message = typeof data.error === 'string'
+          ? data.error
+          : 'Failed to update time log';
+        setEditError(message);
+        return;
+      }
+
+      fetchTimeLogs();
+      setEditDialogOpen(false);
+      setTimeLogToEdit(null);
+    } catch (err) {
+      setEditError('Something went wrong');
+    } finally {
+      setSavingEdit(false);
     }
   };
 
@@ -1260,15 +1336,22 @@ export default function TimeLogsPage() {
                                {remarks.label}
                              </Badge>
                            </td>
-                           <td className="px-6 py-4">
-                             <button
-                               onClick={() => handleDeleteClick(log)}
-                               className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                               title="Delete time log"
-                             >
-                               <Trash2 className="w-4 h-4" />
-                             </button>
-                           </td>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <button
+                                onClick={() => handleEditClick(log)}
+                                className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                                title="Edit time log"
+                              >
+                                <Pencil className="w-4 h-4" />
+                              </button>
+                              <button
+                                onClick={() => handleDeleteClick(log)}
+                                className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                                title="Delete time log"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </td>
                          </tr>
                        );
                      })}
@@ -1352,6 +1435,87 @@ export default function TimeLogsPage() {
            )}
          </div>
        )}
+
+      <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
+        <DialogContent className="sm:max-w-md p-0 gap-0 overflow-hidden rounded-2xl shadow-2xl border-0 bg-white text-gray-900">
+          <div className="relative bg-gradient-to-r from-blue-600 to-indigo-600 px-6 py-6">
+            <div className="relative">
+              <DialogTitle className="text-xl font-bold text-white">Edit Time Log</DialogTitle>
+              <DialogDescription className="text-blue-100 text-sm mt-0.5">
+                {timeLogToEdit?.employee?.fullName} ({timeLogToEdit?.employee?.employeeId})
+              </DialogDescription>
+            </div>
+          </div>
+          <div className="p-6 space-y-4">
+            <div>
+              <Label htmlFor="edit-date" className="text-sm font-medium text-gray-700">Date</Label>
+              <Input
+                id="edit-date"
+                type="date"
+                value={editDate}
+                onChange={(e) => setEditDate(e.target.value)}
+                className="mt-1 bg-white text-gray-900 border-gray-300 [color-scheme:light]"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="edit-clock-in" className="text-sm font-medium text-gray-700">Clock In</Label>
+                <Input
+                  id="edit-clock-in"
+                  type="time"
+                  value={editClockIn}
+                  onChange={(e) => setEditClockIn(e.target.value)}
+                  className="mt-1 bg-white text-gray-900 border-gray-300 [color-scheme:light]"
+                />
+              </div>
+              <div>
+                <Label htmlFor="edit-clock-out" className="text-sm font-medium text-gray-700">Clock Out</Label>
+                <Input
+                  id="edit-clock-out"
+                  type="time"
+                  value={editClockOut}
+                  onChange={(e) => setEditClockOut(e.target.value)}
+                  className="mt-1 bg-white text-gray-900 border-gray-300 [color-scheme:light]"
+                />
+              </div>
+            </div>
+            <p className="text-xs text-gray-400">Leave a time blank to clear it. Work hours are recomputed automatically.</p>
+            <div>
+              <Label htmlFor="edit-notes" className="text-sm font-medium text-gray-700">Notes (optional)</Label>
+              <Input
+                id="edit-notes"
+                type="text"
+                value={editNotes}
+                onChange={(e) => setEditNotes(e.target.value)}
+                placeholder="Reason for correction"
+                className="mt-1 bg-white text-gray-900 placeholder:text-gray-400 border-gray-300 [color-scheme:light]"
+              />
+            </div>
+            {editError && (
+              <div className="flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-600">
+                <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                <span>{editError}</span>
+              </div>
+            )}
+          </div>
+          <DialogFooter className="px-6 pb-6">
+            <Button
+              variant="outline"
+              onClick={() => setEditDialogOpen(false)}
+              className="border-gray-200 text-gray-600 hover:text-gray-900 hover:bg-gray-50 rounded-xl"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleEditSave}
+              disabled={savingEdit}
+              className="bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl"
+            >
+              {savingEdit ? 'Saving...' : 'Save Changes'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <DialogContent className="sm:max-w-md bg-black border-2 border-yellow-500/50 shadow-[0_0_30px_rgba(234,179,8,0.3)]">
